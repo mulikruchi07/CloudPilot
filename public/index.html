@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workflow Hub | CloudPilot Dashboard</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --sidebar-bg: #0f172a;
+    --sidebar-hover: #1e293b;
+    --primary: #6366f1;
+    --primary-dark: #4f46e5;
+    --primary-light: #818cf8;
+    --accent: #f43f5e;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --bg-main: #f8fafc;
+    --bg-secondary: #f1f5f9;
+    --card-white: #ffffff;
+    --text-main: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  }
+
+  body {
+    font-family: 'Manrope', sans-serif;
+    background: var(--bg-main);
+    color: var(--text-main);
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 280px;
+    background: var(--sidebar-bg);
+    padding: 2rem 0;
+    display: flex;
+    flex-direction: column;
+    color: white;
+    position: fixed;
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .logo-box {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 1.5rem 2rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 1.5rem;
+  }
+
+  .logo-icon {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+  }
+
+  .logo-text {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .nav-menu {
+    list-style: none;
+    flex: 1;
+    padding: 0 1rem;
+  }
+
+  .nav-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    padding: 1.5rem 0.5rem 0.5rem;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #94a3b8;
+    margin-bottom: 4px;
+    font-weight: 500;
+    font-size: 14px;
+  }
+
+  .nav-item i {
+    width: 20px;
+    font-size: 16px;
+  }
+
+  .nav-item:hover {
+    background: var(--sidebar-hover);
+    color: white;
+  }
+
+  .nav-item.active {
+    background: rgba(99, 102, 241, 0.15);
+    color: white;
+    position: relative;
+  }
+
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 20px;
+    background: var(--primary-light);
+    border-radius: 0 3px 3px 0;
+  }
+
+  .user-profile {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .user-profile:hover {
+    background: var(--sidebar-hover);
+  }
+
+  .user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 16px;
+  }
+
+  .user-info {
+    flex: 1;
+  }
+
+  .user-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+  }
+
+  .user-email {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* Main Content */
+  .main-wrapper {
+    flex: 1;
+    margin-left: 280px;
+    padding: 2rem 2.5rem;
+    max-width: 100%;
+  }
+
+  /* Top Bar */
+  .top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .page-header h1 {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text-main);
+    margin-bottom: 4px;
+  }
+
+  .page-header p {
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+
+  .top-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .search-wrapper {
+    position: relative;
+    width: 320px;
+  }
+
+  .search-wrapper i {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  .search-wrapper input {
+    width: 100%;
+    padding: 11px 16px 11px 44px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--card-white);
+    font-family: inherit;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+
+  .search-wrapper input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.08);
+  }
+
+  .filter-btn {
+    padding: 11px 18px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--card-white);
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .filter-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .btn-create {
+    background: var(--primary);
+    color: white;
+    padding: 11px 20px;
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-create:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Stats Grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .stat-card {
+    background: var(--card-white);
+    padding: 1.5rem;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .stat-card:hover::before {
+    opacity: 1;
+  }
+
+  .stat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+  }
+
+  .stat-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  .stat-icon.primary { background: rgba(99, 102, 241, 0.1); color: var(--primary); }
+  .stat-icon.success { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+  .stat-icon.muted { background: rgba(100, 116, 139, 0.1); color: var(--text-muted); }
+  .stat-icon.warning { background: rgba(245, 158, 11, 0.1); color: var(--warning); }
+
+  .stat-value {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--text-main);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .stat-trend {
+    font-size: 13px;
+    color: var(--success);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .stat-trend.negative {
+    color: var(--accent);
+  }
+
+  /* Section Header */
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-main);
+  }
+
+  .view-toggle {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-secondary);
+    padding: 4px;
+    border-radius: var(--radius-sm);
+  }
+
+  .view-btn {
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+
+  .view-btn.active {
+    background: var(--card-white);
+    color: var(--primary);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Workflow Grid */
+  .workflows-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .wf-card {
+    background: var(--card-white);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    border: 1px solid var(--border);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .wf-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s;
+  }
+
+  .wf-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: rgba(99, 102, 241, 0.3);
+  }
+
+  .wf-card:hover::before {
+    transform: scaleX(1);
+  }
+
+  .wf-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+  }
+
+  .wf-title-group h3 {
+    font-weight: 700;
+    font-size: 17px;
+    color: var(--text-main);
+    margin-bottom: 4px;
+  }
+
+  .wf-id {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: inline-block;
+  }
+
+  .status-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .status-badge.active {
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--success);
+  }
+
+  .status-badge.inactive {
+    background: rgba(100, 116, 139, 0.12);
+    color: var(--text-muted);
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .status-badge.active .status-dot {
+    animation: pulse-dot 2s infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .wf-meta {
+    padding: 1rem 0;
+    margin-bottom: 1rem;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .meta-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+
+  .meta-item:last-child {
+    margin-bottom: 0;
+  }
+
+  .meta-item i {
+    color: var(--primary);
+    width: 16px;
+    font-size: 14px;
+  }
+
+  .wf-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+
+  .wf-btn {
+    padding: 10px;
+    border: none;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .wf-btn.primary {
+    background: var(--primary);
+    color: white;
+  }
+
+  .wf-btn.primary:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+  }
+
+  .wf-btn.secondary {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+  }
+
+  .wf-btn.secondary:hover {
+    background: var(--border);
+  }
+
+  .wf-btn.danger {
+    background: rgba(244, 63, 94, 0.1);
+    color: var(--accent);
+  }
+
+  .wf-btn.danger:hover {
+    background: rgba(244, 63, 94, 0.2);
+  }
+
+  /* Modal */
+  .modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(8px);
+    display: none;
+    place-items: center;
+    z-index: 1000;
+    padding: 20px;
+  }
+
+  .modal.active {
+    display: grid;
+  }
+
+  .modal-content {
+    background: white;
+    width: 100%;
+    max-width: 540px;
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .modal-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-main);
+  }
+
+  .modal-close {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .modal-close:hover {
+    background: var(--border);
+    color: var(--text-main);
+  }
+
+  .form-group {
+    margin-bottom: 1.25rem;
+  }
+
+  .form-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 8px;
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 11px 16px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--card-white);
+    font-family: inherit;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+
+  .form-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.08);
+  }
+
+  .form-textarea {
+    min-height: 100px;
+    resize: vertical;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .details-grid {
+    background: var(--bg-secondary);
+    padding: 1.5rem;
+    border-radius: var(--radius-md);
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  /* Empty State */
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--text-muted);
+  }
+
+  .empty-state i {
+    font-size: 64px;
+    margin-bottom: 1.5rem;
+    opacity: 0.3;
+  }
+
+  .empty-state h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+
+  .empty-state p {
+    font-size: 14px;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Responsive */
+  @media (max-width: 1024px) {
+    .sidebar {
+      width: 240px;
+    }
+    .main-wrapper {
+      margin-left: 240px;
+    }
+    .workflows-grid {
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    }
+  }
+
+  @media (max-width: 768px) {
+    .sidebar {
+      transform: translateX(-100%);
+      transition: transform 0.3s;
+    }
+    .sidebar.mobile-open {
+      transform: translateX(0);
+    }
+    .main-wrapper {
+      margin-left: 0;
+      padding: 1.5rem;
+    }
+    .top-bar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .search-wrapper {
+      width: 100%;
+    }
+    .stats-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .workflows-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="logo-box">
+    <div class="logo-icon">
+      <i class="fas fa-microchip"></i>
+    </div>
+    <div class="logo-text">CloudPilot</div>
+  </div>
+
+  <ul class="nav-menu">
+    <li class="nav-section-title">Main</li>
+    <li class="nav-item active">
+      <i class="fas fa-th-large"></i>
+      <span>Dashboard</span>
+    </li>
+    <li class="nav-item">
+      <i class="fas fa-project-diagram"></i>
+      <span>Workflows</span>
+    </li>
+    <li class="nav-item">
+      <i class="fas fa-history"></i>
+      <span>Executions</span>
+    </li>
+    <li class="nav-item">
+      <i class="fas fa-chart-line"></i>
+      <span>Analytics</span>
+    </li>
+
+    <li class="nav-section-title">Management</li>
+    <li class="nav-item" onclick="loadWorkflows()">
+      <i class="fas fa-sync-alt"></i>
+      <span>Sync Data</span>
+    </li>
+    <li class="nav-item">
+      <i class="fas fa-database"></i>
+      <span>Data Sources</span>
+    </li>
+    <li class="nav-item" onclick="openSettings()">
+      <i class="fas fa-cog"></i>
+      <span>Settings</span>
+    </li>
+  </ul>
+
+  <div class="user-profile" onclick="logout()">
+    <div class="user-avatar">JD</div>
+    <div class="user-info">
+      <div class="user-name">John Doe</div>
+      <div class="user-email">john@example.com</div>
+    </div>
+    <i class="fas fa-sign-out-alt" style="color: var(--text-muted);"></i>
+  </div>
+</aside>
+
+<div class="main-wrapper">
+  <header class="top-bar">
+    <div class="page-header">
+      <h1>Workflow Dashboard</h1>
+      <p>Manage and monitor your automation workflows</p>
+    </div>
+    <div class="top-actions">
+      <div class="search-wrapper">
+        <i class="fas fa-search"></i>
+        <input type="text" id="searchInput" placeholder="Search workflows...">
+      </div>
+      <button class="filter-btn">
+        <i class="fas fa-filter"></i>
+        Filters
+      </button>
+      <button class="btn-create" onclick="openNewWorkflow()">
+        <i class="fas fa-plus"></i>
+        New Workflow
+      </button>
+    </div>
+  </header>
+
+  <section class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-header">
+        <div>
+          <div class="stat-label">Total Workflows</div>
+        </div>
+        <div class="stat-icon primary">
+          <i class="fas fa-project-diagram"></i>
+        </div>
+      </div>
+      <div class="stat-value" id="totalWorkflows">0</div>
+      <div class="stat-trend">
+        <i class="fas fa-arrow-up"></i>
+        <span>12% from last month</span>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-header">
+        <div>
+          <div class="stat-label">Active Workflows</div>
+        </div>
+        <div class="stat-icon success">
+          <i class="fas fa-check-circle"></i>
+        </div>
+      </div>
+      <div class="stat-value" id="activeWorkflows">0</div>
+      <div class="stat-trend">
+        <i class="fas fa-arrow-up"></i>
+        <span>8% from last month</span>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-header">
+        <div>
+          <div class="stat-label">Inactive Workflows</div>
+        </div>
+        <div class="stat-icon muted">
+          <i class="fas fa-pause-circle"></i>
+        </div>
+      </div>
+      <div class="stat-value" id="inactiveWorkflows">0</div>
+      <div class="stat-trend negative">
+        <i class="fas fa-arrow-down"></i>
+        <span>3% from last month</span>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-header">
+        <div>
+          <div class="stat-label">System Status</div>
+        </div>
+        <div class="stat-icon warning">
+          <i class="fas fa-bolt"></i>
+        </div>
+      </div>
+      <div class="stat-value" id="recentRuns" style="font-size: 20px; font-weight: 700;">Offline</div>
+      <div class="stat-trend">
+        <i class="fas fa-circle" style="font-size: 8px;"></i>
+        <span>Last sync: Never</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-header">
+    <h2 class="section-title">All Workflows</h2>
+    <div class="view-toggle">
+      <button class="view-btn active">
+        <i class="fas fa-th"></i>
+      </button>
+      <button class="view-btn">
+        <i class="fas fa-list"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="workflows-grid" id="workflowsGrid">
+    <div class="empty-state">
+      <i class="fas fa-project-diagram"></i>
+      <h3>No workflows found</h3>
+      <p>Start by creating your first automation workflow or sync with the server</p>
+      <button class="btn-create" onclick="openNewWorkflow()">
+        <i class="fas fa-plus"></i>
+        Create Workflow
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modalTitle">Details</h2>
+      <button class="modal-close" onclick="closeModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+  const API_BASE = 'http://localhost:4000/api/workflows';
+  let workflows = [];
+
+  async function loadWorkflows() {
+    const grid = document.getElementById('workflowsGrid');
+    try {
+      const res = await fetch(API_BASE);
+      if (!res.ok) throw new Error('Server error');
+      const data = await res.json();
+      workflows = data.data || [];
+      updateStats();
+      renderWorkflows();
+    } catch (err) {
+      grid.innerHTML = `
+        <div class="empty-state">
+          <i class="fas fa-exclamation-triangle"></i>
+          <h3>Connection Failed</h3>
+          <p>Unable to connect to the API server at localhost:4000</p>
+          <button class="btn-create" onclick="loadWorkflows()">
+            <i class="fas fa-sync"></i>
+            Retry Connection
+          </button>
+        </div>
+      `;
+    }
+  }
+
+  function updateStats() {
+    const active = workflows.filter(w => w.active).length;
+    document.getElementById('totalWorkflows').textContent = workflows.length;
+    document.getElementById('activeWorkflows').textContent = active;
+    document.getElementById('inactiveWorkflows').textContent = workflows.length - active;
+    document.getElementById('recentRuns').textContent = workflows.length > 0 ? 'Online' : 'Offline';
+  }
+
+  function renderWorkflows() {
+    const grid = document.getElementById('workflowsGrid');
+    const query = document.getElementById('searchInput').value.toLowerCase();
+    const filtered = workflows.filter(w => (w.name || '').toLowerCase().includes(query));
+
+    if (filtered.length === 0) {
+      grid.innerHTML = `
+        <div class="empty-state">
+          <i class="fas fa-search"></i>
+          <h3>No workflows found</h3>
+          <p>Try adjusting your search or create a new workflow</p>
+        </div>
+      `;
+      return;
+    }
+
+    grid.innerHTML = filtered.map(w => `
+      <div class="wf-card">
+        <div class="wf-header">
+          <div class="wf-title-group">
+            <h3>${w.name || 'Untitled Workflow'}</h3>
+            <span class="wf-id">${w.id}</span>
+          </div>
+          <span class="status-badge ${w.active ? 'active' : 'inactive'}">
+            <span class="status-dot"></span>
+            ${w.active ? 'Active' : 'Inactive'}
+          </span>
+        </div>
+
+        <div class="wf-meta">
+          <div class="meta-item">
+            <i class="far fa-calendar-alt"></i>
+            <span>Created ${formatDate(w.createdAt)}</span>
+          </div>
+          <div class="meta-item">
+            <i class="far fa-clock"></i>
+            <span>Updated ${formatDate(w.updatedAt)}</span>
+          </div>
+        </div>
+
+        <div class="wf-actions">
+          <button class="wf-btn primary" onclick="runWorkflow('${w.id}')">
+            <i class="fas fa-play"></i>
+            Run
+          </button>
+          <button class="wf-btn ${w.active ? 'danger' : 'secondary'}" onclick="toggleWorkflow('${w.id}', ${w.active})">
+            <i class="fas fa-power-off"></i>
+            ${w.active ? 'Stop' : 'Start'}
+          </button>
+          <button class="wf-btn secondary" onclick="viewDetails('${w.id}')">
+            <i class="fas fa-info-circle"></i>
+            Info
+          </button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function formatDate(d) {
+    if (!d) return 'N/A';
+    const date = new Date(d);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  async function runWorkflow(id) {
+    try {
+      await fetch(`${API_BASE}/${id}/run`, { method: 'POST' });
+      showNotification('Workflow triggered successfully!', 'success');
+    } catch (err) {
+      showNotification('Failed to trigger workflow', 'error');
+    }
+  }
+
+  async function toggleWorkflow(id, active) {
+    try {
+      await fetch(`${API_BASE}/${id}/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !active })
+      });
+      loadWorkflows();
+      showNotification(`Workflow ${!active ? 'activated' : 'deactivated'}`, 'success');
+    } catch (err) {
+      showNotification('Failed to update workflow', 'error');
+    }
+  }
+
+  function viewDetails(id) {
+    const wf = workflows.find(w => w.id === id);
+    const content = `
+      <div class="details-grid">${JSON.stringify(wf, null, 2)}</div>
+    `;
+    showModal(wf.name || 'Workflow Details', content);
+  }
+
+  function openNewWorkflow() {
+    const content = `
+      <div class="form-group">
+        <label class="form-label">Workflow Name</label>
+        <input type="text" id="wfName" class="form-input" placeholder="Enter workflow name">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea id="wfDesc" class="form-input form-textarea" placeholder="Enter description (optional)"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="wf-btn secondary" onclick="closeModal()" style="flex: 1;">Cancel</button>
+        <button class="wf-btn primary" onclick="createWorkflow()" style="flex: 1;">
+          <i class="fas fa-check"></i>
+          Create Workflow
+        </button>
+      </div>
+    `;
+    showModal('Create New Workflow', content);
+  }
+
+  async function createWorkflow() {
+    const name = document.getElementById('wfName').value;
+    const desc = document.getElementById('wfDesc').value;
+
+    if (!name) {
+      showNotification('Please enter a workflow name', 'error');
+      return;
+    }
+
+    try {
+      await fetch(API_BASE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, description: desc })
+      });
+      closeModal();
+      loadWorkflows();
+      showNotification('Workflow created successfully!', 'success');
+    } catch (err) {
+      showNotification('Failed to create workflow', 'error');
+    }
+  }
+
+  function openSettings() {
+    showNotification('Settings panel coming soon!', 'info');
+  }
+
+  function logout() {
+    if (confirm('Are you sure you want to logout?')) {
+      window.location.href = 'login.html';
+    }
+  }
+
+  function showModal(title, content) {
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalBody').innerHTML = content;
+    document.getElementById('modal').classList.add('active');
+  }
+
+  function closeModal() {
+    document.getElementById('modal').classList.remove('active');
+  }
+
+  function showNotification(message, type) {
+    alert(message);
+  }
+
+  document.getElementById('searchInput').addEventListener('input', renderWorkflows);
+
+  loadWorkflows();
+</script>
+
+</body>
+</html>
