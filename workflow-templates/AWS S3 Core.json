@@ -1,0 +1,1081 @@
+{
+  "name": "AWS S3 Core",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const emailBody = $json[\"textPlain\"] || \"\";\n\n// Helper function to match patterns\nfunction matchFirst(patterns) {\n  for (const pattern of patterns) {\n    const match = emailBody.match(pattern);\n    if (match) return match[1];\n  }\n  return null;\n}\n\n// Detect bucket name\nconst bucketName = matchFirst([\n  /bucket[:\\s*]*([a-zA-Z0-9._-]+)/i,\n  /bucket\\s+name[:\\s*]*([a-zA-Z0-9._-]+)/i\n]);\n\n// Decide task type for S3\nlet task_type = null;\nif (/create bucket/i.test(emailBody)) task_type = \"create_s3_bucket\";\nelse if (/delete bucket/i.test(emailBody)) task_type = \"delete_s3_bucket\";\nelse if (/list buckets/i.test(emailBody)) task_type = \"list_s3_buckets\";\nelse if (/get bucket/i.test(emailBody)) task_type = \"get_s3_bucket\";\nelse if (/update bucket/i.test(emailBody)) task_type = \"update_s3_bucket\";\n\n// Output\nreturn [\n  {\n    json: {\n      bucketName,\n      task_type\n    }\n  }\n];"
+      },
+      "id": "7bc36563-dddd-40cb-8fbc-0f0296e4876e",
+      "name": "Extract Data from Email",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -1296,
+        -432
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\", [\"SUBJECT\", \"create s3\"]]"
+        }
+      },
+      "id": "5f5d24d8-6269-4ce6-9e92-c119f2b0c0c2",
+      "name": "GET Email Request",
+      "type": "n8n-nodes-base.emailReadImap",
+      "position": [
+        -1536,
+        -432
+      ],
+      "typeVersion": 2,
+      "credentials": {
+        "imap": {
+          "id": "4LROXIHnV4ZtXPW5",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "bucket",
+        "name": "={{ $json.bucketName }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        -1056,
+        -432
+      ],
+      "id": "54f58790-8225-4b3e-a825-439a1e94de5b",
+      "name": "Create a bucket",
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const taskType = $json.task_type || \"\";\nconst userName = $json.userName || \"\";\nconst groupName = $json.groupName || \"\";\nconst status = ($node[\"Create a bucket\"].json.status || \"\").trim().toLowerCase();\nconst errorMsg = $json.error || \"\";\n\nconst taskMap = {\n  create_user: \"Create User\",\n  delete_user: \"Delete User\",\n  add_user_to_group: \"Add User to Group\",\n  get_user: \"Get User\",\n  get_many_users: \"Get Many Users\",\n  remove_user_from_group: \"Remove User from Group\",\n  update_user: \"Update User\",\n  create_s3_bucket: \"Create S3 Bucket\"\n};\n\n// If there's an error OR status is not 'success', treat as failure\nconst isFailure = errorMsg || status == \"success\";\n\nlet message = \"\";\n\nif (isFailure) {\n  message = `❌ ${taskMap[taskType] || \"Task\"} failed.\\n`;\n  if (userName) message += `User: ${userName}\\n`;\n  if (groupName) message += `Group: ${groupName}\\n`;\n  if (errorMsg) message += `Error: ${errorMsg}\\n`;\n} else {\n  message = `✅ ${taskMap[taskType] || \"Task\"} completed successfully.\\n`;\n  if (userName) message += `User: ${userName}\\n`;\n  if (groupName) message += `Group: ${groupName}\\n`;\n}\n\nreturn {\n  json: {\n    subject: `${isFailure ? \"Failure\" : \"Success\"} - ${taskMap[taskType] || \"S3 Task\"}`,\n    body: message\n  }\n};\n"
+      },
+      "id": "50e8e682-f838-4b65-ba40-0b83a512e1f0",
+      "name": "Make massage For Email1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -848,
+        -432
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "fromEmail": "abc@gmail.com",
+        "toEmail": "={{ $('GET Email Request').item.json.from }}",
+        "subject": "={{$json[\"subject\"]}}",
+        "emailFormat": "text",
+        "text": "={{ $json.body }}",
+        "options": {
+          "replyTo": "={{ $('GET Email Request').item.json.from }}"
+        }
+      },
+      "id": "1120a97d-853d-49e5-a134-ab1d66c5ebc3",
+      "name": "Send Email Response1",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [
+        -624,
+        -432
+      ],
+      "webhookId": "9be96438-96fa-48c1-8cea-75c179322fb3",
+      "typeVersion": 2.1,
+      "credentials": {
+        "smtp": {
+          "id": "RPyau0JtylKXWnSr",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const emailBody = $json[\"textPlain\"] || \"\";\n\n// Helper function to match patterns\nfunction matchFirst(patterns) {\n  for (const pattern of patterns) {\n    const match = emailBody.match(pattern);\n    if (match) return match[1];\n  }\n  return null;\n}\n\n// Detect bucket name\nconst bucketName = matchFirst([\n  /bucket[:\\s*]*([a-zA-Z0-9._-]+)/i,\n  /bucket\\s+name[:\\s*]*([a-zA-Z0-9._-]+)/i\n]);\n\n// Decide task type for S3\nlet task_type = null;\nif (/create bucket/i.test(emailBody)) task_type = \"create_s3_bucket\";\nelse if (/delete bucket/i.test(emailBody)) task_type = \"delete_s3_bucket\";\nelse if (/list buckets/i.test(emailBody)) task_type = \"list_s3_buckets\";\nelse if (/get bucket/i.test(emailBody)) task_type = \"get_s3_bucket\";\nelse if (/update bucket/i.test(emailBody)) task_type = \"update_s3_bucket\";\n\n// Output\nreturn [\n  {\n    json: {\n      bucketName,\n      task_type\n    }\n  }\n];"
+      },
+      "id": "e96cd81f-f376-4d65-acbc-7901854ceaa1",
+      "name": "Extract Data from Email1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -1296,
+        -240
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\", [\"SUBJECT\", \"delete s3\"]]"
+        }
+      },
+      "id": "24f62e31-8c9a-41aa-aa92-179cb7475967",
+      "name": "GET Email Request1",
+      "type": "n8n-nodes-base.emailReadImap",
+      "position": [
+        -1536,
+        -240
+      ],
+      "typeVersion": 2,
+      "credentials": {
+        "imap": {
+          "id": "4LROXIHnV4ZtXPW5",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const taskType = $json.task_type || \"\";\nconst userName = $json.userName || \"\";\nconst groupName = $json.groupName || \"\";\nconst status = ($node[\"Delete a bucket\"].json.status || \"\").trim().toLowerCase();\nconst errorMsg = $json.error || \"\";\n\nconst taskMap = {\n  create_user: \"Create User\",\n  delete_user: \"Delete User\",\n  add_user_to_group: \"Add User to Group\",\n  get_user: \"Get User\",\n  get_many_users: \"Get Many Users\",\n  remove_user_from_group: \"Remove User from Group\",\n  update_user: \"Update User\",\n  create_s3_bucket: \"Create S3 Bucket\"\n};\n\n// If there's an error OR status is not 'success', treat as failure\nconst isFailure = errorMsg || status == \"success\";\n\nlet message = \"\";\n\nif (isFailure) {\n  message = `❌ ${taskMap[taskType] || \"Task\"} failed.\\n`;\n  if (userName) message += `User: ${userName}\\n`;\n  if (groupName) message += `Group: ${groupName}\\n`;\n  if (errorMsg) message += `Error: ${errorMsg}\\n`;\n} else {\n  message = `✅ ${taskMap[taskType] || \"Task\"} completed successfully.\\n`;\n  if (userName) message += `User: ${userName}\\n`;\n  if (groupName) message += `Group: ${groupName}\\n`;\n}\n\nreturn {\n  json: {\n    subject: `${isFailure ? \"Failure\" : \"Success\"} - ${taskMap[taskType] || \"S3 Task\"}`,\n    body: message\n  }\n};\n"
+      },
+      "id": "54aaca06-b20b-43e7-8b47-ec8d8bb8a3a8",
+      "name": "Make massage For Email",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -848,
+        -240
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "fromEmail": "abc@gmail.com",
+        "toEmail": "={{ $('GET Email Request1').item.json.from }}",
+        "subject": "={{$json[\"subject\"]}}",
+        "emailFormat": "text",
+        "text": "={{ $json.body }}",
+        "options": {
+          "replyTo": "={{ $('GET Email Request1').item.json.from }}"
+        }
+      },
+      "id": "37081d88-40a1-4339-b2fb-662198affbe1",
+      "name": "Send Email Response",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [
+        -624,
+        -240
+      ],
+      "webhookId": "9be96438-96fa-48c1-8cea-75c179322fb3",
+      "typeVersion": 2.1,
+      "credentials": {
+        "smtp": {
+          "id": "RPyau0JtylKXWnSr",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "bucket",
+        "operation": "delete",
+        "name": "demo2178352xds"
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        -1056,
+        -240
+      ],
+      "id": "ef3e3aed-ffce-4109-8ef9-bdefa59b9584",
+      "name": "Delete a bucket",
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the email fields from IMAP node\nconst subject = $json.subject || \"\";\nconst body = $json.text || \"\";\n\n// Determine task type from subject\n// Example subject: \"list s3 bucket\"\nlet taskType = \"\";\nif (subject.toLowerCase().includes(\"list s3 bucket\")) {\n  taskType = \"list_buckets\";\n}\n\n// You can add bucket name extraction if needed (for other tasks)\nlet bucketName = \"\";\nconst bucketMatch = body.match(/Bucket:\\s*(.+)/i);\nif (bucketMatch) {\n  bucketName = bucketMatch[1].trim();\n}\n\nreturn {\n  json: {\n    task_type: taskType,\n    bucketName\n  }\n};\n"
+      },
+      "id": "f8052200-8727-420a-bd46-7c2f9c8d2200",
+      "name": "Extract Data from Email3",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -1296,
+        -48
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\", [\"SUBJECT\", \"list s3\"]]"
+        }
+      },
+      "id": "42db2283-205e-4c5d-b4ed-ae349c363858",
+      "name": "GET Email Request3",
+      "type": "n8n-nodes-base.emailReadImap",
+      "position": [
+        -1536,
+        -48
+      ],
+      "typeVersion": 2,
+      "credentials": {
+        "imap": {
+          "id": "4LROXIHnV4ZtXPW5",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Input from AWS List Buckets node\n// Example: [{ Name: \"demo2178352xds\", CreationDate: \"2025-08-13T23:59:25.000Z\" }]\nconst buckets = $input.all().map(item => item.json.Name);\n\nlet message = \"\";\nif (buckets.length > 0) {\n  message = `✅ List of Buckets:\\n\\n${buckets.join(\"\\n\")}`;\n} else {\n  message = \"⚠️ No buckets found in your AWS S3 account.\";\n}\n\n// Return for Email node\nreturn {\n  json: {\n    subject: \"AWS S3 Bucket List\",\n    body: message\n  }\n};\n"
+      },
+      "id": "2b0b45f0-4fdf-4a57-9e7b-bd5d97fea2de",
+      "name": "Make massage For Email3",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -848,
+        -48
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "fromEmail": "abc@gmail.com",
+        "toEmail": "={{ $('GET Email Request3').item.json.from }}",
+        "subject": "={{$json[\"subject\"]}}",
+        "emailFormat": "text",
+        "text": "={{ $json.body }}",
+        "options": {
+          "replyTo": "={{ $('GET Email Request3').item.json.from }}"
+        }
+      },
+      "id": "718a7855-9edb-43c2-a4e6-caa2959c4480",
+      "name": "Send Email Response3",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [
+        -624,
+        -48
+      ],
+      "webhookId": "9be96438-96fa-48c1-8cea-75c179322fb3",
+      "typeVersion": 2.1,
+      "credentials": {
+        "smtp": {
+          "id": "RPyau0JtylKXWnSr",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract variables\nconst subject = $json.textSubject || \"\";\nconst body = $json.textPlain || $json.textHtml || \"\";\nconst taskType = \"get_bucket\";\n\nlet bucketName = \"\";\n\n// Match from subject: e.g., \"get s3 bucket : demo2178352xds\"\nconst bucketMatchSubject = subject.match(/get\\s*s3\\s*bucket\\s*:\\s*([^\\s]+)/i);\nif (bucketMatchSubject) {\n  bucketName = bucketMatchSubject[1].trim();\n}\n\n// If not found in subject, match from body\nif (!bucketName) {\n  const bucketMatchBody = body.match(/get\\s*s3\\s*bucket\\s*:\\s*([^\\s]+)/i);\n  if (bucketMatchBody) {\n    bucketName = bucketMatchBody[1].trim();\n  }\n}\n\n// Return extracted data\nreturn {\n  json: {\n    task_type: taskType,\n    bucketName\n  }\n};\n"
+      },
+      "id": "2ff7c85f-ebb4-4c79-adf9-bfd317f057ae",
+      "name": "Extract Data from Email4",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -1296,
+        160
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\", [\"SUBJECT\", \"get s3\"]]"
+        }
+      },
+      "id": "1a58b5a3-b455-40df-ae67-16a21ade720d",
+      "name": "GET Email Request4",
+      "type": "n8n-nodes-base.emailReadImap",
+      "position": [
+        -1536,
+        160
+      ],
+      "typeVersion": 2,
+      "credentials": {
+        "imap": {
+          "id": "4LROXIHnV4ZtXPW5",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get email body\nconst emailBody = $json[\"textPlain\"] || \"\";\n\n// Extract bucket name from format: Name: my-bucket\nconst match = emailBody.match(/Name:\\s*(.+)/i);\nconst bucketName = $input.first().json.Name;\n\n// Always return output, even if no bucket name found\nif (!bucketName) {\n    return [\n        {\n            subject: \"GET_BUCKET_FAILED\",\n            body: \"Error: No bucket name found in the request.\",\n            bucketName: \"\"\n        }\n    ];\n}\n\n// Pass bucketName forward so S3 node can use it\nreturn [\n    {\n        subject: \"GET_BUCKET_REQUEST\",\n        body: ` Bucket available in S3'${bucketName}'...`,\n        bucketName: bucketName\n    }\n];\n"
+      },
+      "id": "85a10aaa-4d49-4c6a-891d-041423a1dc82",
+      "name": "Make massage For Email4",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -848,
+        160
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "fromEmail": "abc@gmail.com",
+        "toEmail": "={{ $('GET Email Request4').item.json.from }}",
+        "subject": "={{$json[\"subject\"]}}",
+        "emailFormat": "text",
+        "text": "={{ $json.body }}",
+        "options": {
+          "replyTo": "={{ $('GET Email Request4').item.json.from }}"
+        }
+      },
+      "id": "0fac8fd9-f1e6-417f-8f9c-2e3eabb74814",
+      "name": "Send Email Response4",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [
+        -624,
+        160
+      ],
+      "webhookId": "9be96438-96fa-48c1-8cea-75c179322fb3",
+      "typeVersion": 2.1,
+      "credentials": {
+        "smtp": {
+          "id": "RPyau0JtylKXWnSr",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "bucket",
+        "operation": "getAll"
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        -1056,
+        -48
+      ],
+      "id": "bce16692-40d7-4753-9349-2fee0d874e21",
+      "name": "List S3 Bucket2",
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "bucket",
+        "operation": "getAll"
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        -1056,
+        160
+      ],
+      "id": "ffe51dfd-8003-49c3-b462-295d1f33f918",
+      "name": "Get S3 Bucket2",
+      "alwaysOutputData": true,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\", [\"SUBJECT\", \"s3\"]]"
+        }
+      },
+      "id": "59aaa7c0-4f28-4e06-abc5-ece76cfbfd1e",
+      "name": "1. GET Email Request (Trigger)",
+      "type": "n8n-nodes-base.emailReadImap",
+      "position": [
+        -256,
+        -160
+      ],
+      "typeVersion": 2,
+      "credentials": {
+        "imap": {
+          "id": "4LROXIHnV4ZtXPW5",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const emailBody = $json[\"textPlain\"] || \"\";\nconst subject = $json[\"subject\"] || \"\";\n\n// --- Extract bucket name only from the email body ---\nconst bucketNameMatch = emailBody.match(/bucket[:\\s]*([a-zA-Z0-9._-]+)/i);\nconst bucketName = bucketNameMatch ? bucketNameMatch[1] : null;\n\n// --- Extract object key if present ---\nconst objectKeyMatch = emailBody.match(/object[:\\s]*([^\\s]+)/i);\nconst objectKey = objectKeyMatch ? objectKeyMatch[1] : null;\n\n// --- Detect task type (from both body and subject) ---\nlet task_type = \"\";\n\nif (/create\\s+(s3\\s+)?bucket/i.test(emailBody) || /create\\s+(s3\\s+)?bucket/i.test(subject)) {\n  task_type = \"create_bucket\";\n} else if (/delete\\s+(s3\\s+)?bucket/i.test(emailBody) || /delete\\s+(s3\\s+)?bucket/i.test(subject)) {\n  task_type = \"delete_bucket\";\n} else if (/list\\s+(s3\\s+)?buckets?/i.test(emailBody) || /list\\s+(s3\\s+)?buckets?/i.test(subject)) {\n  task_type = \"list_buckets\";\n} else if (/get\\s+(s3\\s+)?object/i.test(emailBody) || /get\\s+(s3\\s+)?object/i.test(subject)) {\n  task_type = \"get_object\";\n} else if (/upload\\s+(s3\\s+)?object/i.test(emailBody) || /upload\\s+(s3\\s+)?object/i.test(subject)) {\n  task_type = \"upload_object\";\n} else if (/delete\\s+(s3\\s+)?object/i.test(emailBody) || /delete\\s+(s3\\s+)?object/i.test(subject)) {\n  task_type = \"delete_object\";\n}\n\n// --- Output ---\nreturn [\n  {\n    json: {\n      bucketName,\n      objectKey,\n      task_type,\n    },\n  },\n];\n"
+      },
+      "id": "19fe3584-7720-4c20-b312-54ab91d00882",
+      "name": "2. Extract Data from Email",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        0,
+        -160
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "resource": "bucket",
+        "name": "={{ $json.bucketName }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        624,
+        -560
+      ],
+      "id": "b5fd918d-136c-468b-9302-8a99929788e4",
+      "name": "3A. Create S3 Bucket",
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "bucket",
+        "operation": "delete",
+        "name": "={{ $json.bucketName }}"
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        624,
+        -400
+      ],
+      "id": "712960b2-2f9d-4a8c-9ec3-d23baa58bb76",
+      "name": "3B. Delete S3 Bucket",
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "bucket",
+        "operation": "getAll"
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        624,
+        -240
+      ],
+      "id": "8935a9cf-7814-4e68-9a33-48999c348458",
+      "name": "3C. List S3 Buckets",
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "bucketName": "={{ $json.bucketName }}",
+        "fileKey": "={{ $json.objectKey }}"
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        624,
+        -80
+      ],
+      "id": "fd1766a5-1f50-45e0-a7c7-acec63208934",
+      "name": "3D. Get S3 Object",
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "={{ $json.bucketName }}",
+        "fileName": "={{ $json.objectKey }}",
+        "binaryData": false,
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        624,
+        96
+      ],
+      "id": "66c93d7f-5d39-4b58-ab80-94aa462facd2",
+      "name": "3E. Upload S3 Object",
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "bucketName": "={{ $json.bucketName }}",
+        "fileKey": "={{ $json.objectKey }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        624,
+        256
+      ],
+      "id": "464aa4f6-3884-4823-89ed-232b42a3a6a7",
+      "name": "3F. Delete S3 Object",
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.task_type}}",
+                    "rightValue": "create_bucket",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "1ce672fe-7d15-49d6-9345-45df92ad5f96"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "55eba5d0-abe0-4465-8a86-55c91a20d08a",
+                    "leftValue": "={{$json.task_type}}",
+                    "rightValue": "delete_bucket",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "faba7f80-b177-4dfb-b898-9524c1585bde",
+                    "leftValue": "={{$json.task_type}}",
+                    "rightValue": "list_buckets",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "6ed27fda-35ff-45f4-9d4a-a6bf36624271",
+                    "leftValue": "={{$json.task_type}}",
+                    "rightValue": "get_object",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b3073a3a-231a-463e-b816-e5c70c679a7a",
+                    "leftValue": "={{$json.task_type}}",
+                    "rightValue": "upload_object",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c6a7e025-a185-48b4-93c6-2a819c9b0e11",
+                    "leftValue": "={{$json.task_type}}",
+                    "rightValue": "delete_object",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "allMatchingOutputs": false
+        }
+      },
+      "id": "13f09766-b67d-4f12-bd9f-af715fa93101",
+      "name": "3. Check Type Of Task",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        240,
+        -224
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const taskType = $json.task_type || \"\";\nconst bucketName = $json.bucketName || \"\";\nconst objectKey = $json.objectKey || \"\";\nconst status = $json.status || \"success\"; // Assume success by default\nconst errorMsg = $json.error || \"\";\n\n// Map S3 task codes to readable names\nconst taskMap = {\n  create_bucket: \"Create S3 Bucket\",\n  delete_bucket: \"Delete S3 Bucket\",\n  list_buckets: \"List S3 Buckets\",\n  get_object: \"Get S3 Object\",\n  upload_object: \"Upload S3 Object\",\n  delete_object: \"Delete S3 Object\"\n};\n\nlet message = \"\";\nlet subject = \"\";\n\nif (errorMsg || status !== \"success\") {\n    subject = `❌ Failure - ${taskMap[taskType] || \"S3 Task\"}`;\n    message = `❌ ${taskMap[taskType] || \"S3 Task\"} failed.\\n`;\n    if (bucketName) message += `Bucket: ${bucketName}\\n`;\n    if (objectKey) message += `Object: ${objectKey}\\n`;\n    if (errorMsg) message += `Error: ${errorMsg}\\n`;\n} else {\n    subject = `✅ Success - ${taskMap[taskType] || \"S3 Task\"}`;\n    message = `✅ ${taskMap[taskType] || \"S3 Task\"} completed successfully.\\n`;\n    if (bucketName) message += `Bucket: ${bucketName}\\n`;\n    if (objectKey) message += `Object: ${objectKey}\\n`;\n    \n    // Special case for list buckets\n    if (taskType === \"list_buckets\") {\n        const buckets = $input.all().map(item => item.json.name);\n        if (buckets.length > 0) {\n            message += `\\nList of Buckets:\\n${buckets.join(\"\\n\")}`;\n        } else {\n            message += \"\\nNo buckets found.\";\n        }\n    }\n\n    // Special case for get object\n    if (taskType === \"get_object\") {\n        const objectContent = $input.first().json.data || \"\";\n        message += `\\nObject Content:\\n${objectContent}`; \n    }\n}\n\nreturn {\n  json: {\n    subject,\n    body: message\n  }\n};\n"
+      },
+      "id": "72292a00-b53f-4ee8-9a7e-7821a981b6da",
+      "name": "4. Make Response Email",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1040,
+        -160
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "fromEmail": "abc@gmail.com",
+        "toEmail": "={{ $('1. GET Email Request (Trigger)').item.json.from }}",
+        "subject": "={{$json[\"subject\"]}}",
+        "emailFormat": "text",
+        "text": "={{ $json.body }}",
+        "options": {
+          "replyTo": "={{ $('1. GET Email Request (Trigger)').item.json.from }}"
+        }
+      },
+      "id": "a24a59a0-745d-4b82-9e81-364cb8524fa0",
+      "name": "5. Send Email Response",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [
+        1264,
+        -160
+      ],
+      "webhookId": "9be96438-96fa-48c1-8cea-75c179322fb3",
+      "typeVersion": 2.1,
+      "credentials": {
+        "smtp": {
+          "id": "RPyau0JtylKXWnSr",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Extract Data from Email": {
+      "main": [
+        [
+          {
+            "node": "Create a bucket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET Email Request": {
+      "main": [
+        [
+          {
+            "node": "Extract Data from Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a bucket": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make massage For Email1": {
+      "main": [
+        [
+          {
+            "node": "Send Email Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Data from Email1": {
+      "main": [
+        [
+          {
+            "node": "Delete a bucket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET Email Request1": {
+      "main": [
+        [
+          {
+            "node": "Extract Data from Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make massage For Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete a bucket": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Data from Email3": {
+      "main": [
+        [
+          {
+            "node": "List S3 Bucket2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET Email Request3": {
+      "main": [
+        [
+          {
+            "node": "Extract Data from Email3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make massage For Email3": {
+      "main": [
+        [
+          {
+            "node": "Send Email Response3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Data from Email4": {
+      "main": [
+        [
+          {
+            "node": "Get S3 Bucket2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET Email Request4": {
+      "main": [
+        [
+          {
+            "node": "Extract Data from Email4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make massage For Email4": {
+      "main": [
+        [
+          {
+            "node": "Send Email Response4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List S3 Bucket2": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get S3 Bucket2": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1. GET Email Request (Trigger)": {
+      "main": [
+        [
+          {
+            "node": "2. Extract Data from Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Extract Data from Email": {
+      "main": [
+        [
+          {
+            "node": "3. Check Type Of Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3A. Create S3 Bucket": {
+      "main": [
+        [
+          {
+            "node": "4. Make Response Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3B. Delete S3 Bucket": {
+      "main": [
+        [
+          {
+            "node": "4. Make Response Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3C. List S3 Buckets": {
+      "main": [
+        [
+          {
+            "node": "4. Make Response Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3D. Get S3 Object": {
+      "main": [
+        [
+          {
+            "node": "4. Make Response Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3E. Upload S3 Object": {
+      "main": [
+        [
+          {
+            "node": "4. Make Response Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3F. Delete S3 Object": {
+      "main": [
+        [
+          {
+            "node": "4. Make Response Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Check Type Of Task": {
+      "main": [
+        [
+          {
+            "node": "3A. Create S3 Bucket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "3B. Delete S3 Bucket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "3C. List S3 Buckets",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "3D. Get S3 Object",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "3E. Upload S3 Object",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "3F. Delete S3 Object",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Make Response Email": {
+      "main": [
+        [
+          {
+            "node": "5. Send Email Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c1506bfe-23ab-425e-8631-67f8ab8618a6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cf0830f74576d2a6e58a0e723cc09a2a46df5589d469e5bee438e5f4f03fbe6a"
+  },
+  "id": "wtdsusktki0NwNvZ",
+  "tags": []
+}

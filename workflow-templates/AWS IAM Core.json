@@ -1,0 +1,2018 @@
+{
+  "name": "AWS IAM Core",
+  "nodes": [
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "99e9f0b2-e19b-45c5-a60e-317d772e6291",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "create_user"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "4e72b4c7-eed9-4039-84c7-773a4dee2eb6",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "delete_user"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "aef1b8b8-9175-4819-9cb8-87209e4b2954",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "add_user_to_group"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "a256941b-0882-4ee1-9126-491da78f5fb4",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "get_user"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "a502de56-2efa-4766-b883-65d8cefaab1a",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "get_many_user"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "62aae8fd-71f2-4194-af78-b8d42179a2d0",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "remove_user_from_group"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "e70fb51d-7d2e-4ed2-bdde-7edd03059033",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "update_user"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ec9414e0-aa0c-4742-80d2-7fcb1d76a488",
+      "name": "Check Type Of Task",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        1744,
+        560
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\", [\"SUBJECT\", \"iam\"]]"
+        }
+      },
+      "id": "bd3dc715-47d7-48d7-80f3-fb903fbd4cbb",
+      "name": "GET Email Request",
+      "type": "n8n-nodes-base.emailReadImap",
+      "position": [
+        1136,
+        640
+      ],
+      "typeVersion": 2,
+      "credentials": {
+        "imap": {
+          "id": "4LROXIHnV4ZtXPW5",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const emailBody = $json[\"textPlain\"] || \"\";\n\n// Helper function to match patterns\nfunction matchFirst(patterns) {\n  for (const pattern of patterns) {\n    const match = emailBody.match(pattern);\n    if (match) return match[1];\n  }\n  return null;\n}\n\n// Detect user name\nconst userName = matchFirst([\n  /user[:\\s*]*([a-zA-Z0-9._-]+)/i,\n  /userName\\s+([a-zA-Z0-9._-]+)/i\n]);\n\n// Detect new username for updates\nconst newUserName = matchFirst([\n  /newusername[:\\s*]*([a-zA-Z0-9._-]+)/i,\n  /new user name\\s+([a-zA-Z0-9._-]+)/i\n]);\n\n// Detect group name\nconst groupName = matchFirst([\n  /group[:\\s*]*([a-zA-Z0-9._-]+)/i,\n  /groupname\\s+([a-zA-Z0-9._-]+)/i\n]);\n\n// Detect new group name for updates\nconst newGroupName = matchFirst([\n  /newgroupname[:\\s*]*([a-zA-Z0-9._-]+)/i,\n  /new group name\\s+([a-zA-Z0-9._-]+)/i\n]);\n\n// Decide task type\nlet task_type = null;\nif (/create user/i.test(emailBody)) task_type = \"create_user\";\nelse if (/delete user/i.test(emailBody)) task_type = \"delete_user\";\nelse if (/Add user /i.test(emailBody)) task_type = \"add_user_to_group\";\nelse if (/get user/i.test(emailBody)) task_type = \"get_user\";\nelse if (/get many user/i.test(emailBody)) task_type = \"get_many_user\";\nelse if (/remove user/i.test(emailBody)) task_type = \"remove_user_from_group\";\nelse if (/update user/i.test(emailBody)) task_type = \"update_user\";\nelse if (/create group/i.test(emailBody)) task_type = \"create_group\";\nelse if (/delete group/i.test(emailBody)) task_type = \"delete_group\";\nelse if (/get group/i.test(emailBody)) task_type = \"get_group\";\nelse if (/get many groups/i.test(emailBody)) task_type = \"get_many_groups\";\nelse if (/update group/i.test(emailBody)) task_type = \"update_group\";\nelse {\n  // Handle unrecognized commands\n  throw new Error(\"Unrecognized command in email body.\");\n}\n\nreturn [\n  {\n    json: {\n      userName,\n      newUserName,\n      groupName,\n      newGroupName,\n      task_type\n    }\n  }\n];\n"
+      },
+      "id": "ff2862c7-4284-4cbf-a17a-beaf61d27b33",
+      "name": "Extract Data from Email",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1408,
+        640
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// This code is designed for a Function node in an n8n workflow.\n// It generates a structured message (subject and body) for a notification node,\n// such as email, Slack, or Telegram, based on the outcome of a preceding task.\n\n// Retrieve variables passed from previous nodes.\n// The taskType corresponds to the AWS IAM operation being performed.\nconst taskType = $json.task_type || \"\";\nconst userName = $json.UserName || \"\";\nconst groupName = $json.groupName || \"\";\n// The error message, if the task failed. We'll use this to determine success or failure.\nconst errorMsg = $json.error || \"\";\n// The status variable is not reliable, so we will determine the status based on the error message.\nconst status = errorMsg ? \"fail\" : \"success\";\n\n// Map the task_type variable to a more readable string for the message.\nconst taskMap = {\n  create_user: \"Create User\",\n  delete_user: \"Delete User\",\n  add_user_to_group: \"Add User to Group\",\n  get_user: \"Get User\",\n  get_many_users: \"Get Many Users\", \n  remove_user_from_group: \"Remove User from Group\",\n  update_user: \"Update User\"\n};\n\nlet message = \"\";\n\n// Construct the message based on the status of the task.\n// This logic correctly handles the 'continue if error' setting.\nif (status === \"success\") {\n  // If the status is 'success', create a positive message.\n  // The 'taskMap' ensures a friendly, readable task name.\n  message = `✅ ${taskMap[taskType] || \"IAM Task\"} completed successfully.\\n`;\n  if (userName) message += `User: ${userName}\\n`;\n  if (groupName) message += `Group: ${groupName}\\n`;\n\n  // Special handling for 'get_many_users' to include the list of users.\n  if (taskType === \"get_many_users\" && $json.ResponseMetadata) {\n    const users = $json.ResponseMetadata.Users || $json.ResponseMetadata.users || [];\n    if (users.length > 0) {\n      message += \"\\n--- Extracted Users ---\\n\";\n      users.forEach(user => {\n        message += `- Username: ${user.UserName}\\n`;\n        message += `  Create Date: ${new Date(user.CreateDate).toLocaleDateString()}\\n`;\n        message += `  User ID: ${user.UserId}\\n`;\n        message += `  ARN: ${user.Arn}\\n\\n`;\n      });\n      message += \"-----------------------\\n\";\n    } else {\n      message += \"No users found.\\n\";\n    }\n  }\n\n} else {\n  // If the status is anything other than 'success' (e.g., 'fail'),\n  // create a clear failure message.\n  message = `❌ ${taskMap[taskType] || \"IAM Task\"} failed.\\n`;\n  if (userName) message += `User: ${userName}\\n`;\n  if (groupName) message += `Group: ${groupName}\\n`;\n  // Include the specific error message for easy debugging.\n  if (errorMsg) message += `Error: ${errorMsg}\\n`;\n}\n\n// Return the structured object that can be used by a notification node.\nreturn {\n  json: {\n    // The subject line clearly indicates success or failure.\n    subject: `${status === \"success\" ? \"Success\" : \"Failure\"} - ${taskMap[taskType] || \"IAM Task\"}`,\n    // The body contains the detailed message.\n    body: message\n  }\n};\n"
+      },
+      "id": "fc0d5483-e626-41df-b1de-03a8af77acd0",
+      "name": "Make massage For Email",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2448,
+        640
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "fromEmail": "abc@gmail.com",
+        "toEmail": "={{ $('GET Email Request').item.json.from }}",
+        "subject": "={{$json[\"subject\"]}}",
+        "emailFormat": "text",
+        "text": "={{ $json.body }}",
+        "options": {
+          "replyTo": "={{ $('GET Email Request').item.json.from }}"
+        }
+      },
+      "id": "2d4afbcc-6a26-493b-b41f-cb782b790754",
+      "name": "Send Email Response",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [
+        2816,
+        640
+      ],
+      "webhookId": "9be96438-96fa-48c1-8cea-75c179322fb3",
+      "typeVersion": 2.1,
+      "credentials": {
+        "smtp": {
+          "id": "RPyau0JtylKXWnSr",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "userName": "={{ $json.userName }}",
+        "additionalFields": {},
+        "requestOptions": {}
+      },
+      "id": "ceec0e8d-9369-4725-bf54-95166f3328fb",
+      "name": "Create user",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        2080,
+        48
+      ],
+      "typeVersion": 1,
+      "alwaysOutputData": false,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "user": {
+          "__rl": true,
+          "value": "={{ $json.userName }}",
+          "mode": "userName"
+        },
+        "requestOptions": {}
+      },
+      "id": "5803bc90-f713-4156-a145-5a13c9bf7285",
+      "name": "Delete user",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        2080,
+        240
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "addToGroup",
+        "user": {
+          "__rl": true,
+          "value": "={{ $json.userName }}",
+          "mode": "userName"
+        },
+        "group": {
+          "__rl": true,
+          "value": "={{ $json.groupName }}",
+          "mode": "groupName"
+        },
+        "requestOptions": {}
+      },
+      "id": "cbc843eb-4026-491c-be17-ecefec962b42",
+      "name": "Add user to group",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        2080,
+        448
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "user": {
+          "__rl": true,
+          "value": "={{ $json.userName }}",
+          "mode": "userName"
+        },
+        "requestOptions": {}
+      },
+      "id": "e6750f5f-689b-403b-90ba-8523e3c72b01",
+      "name": "Get user",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        2080,
+        640
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "returnAll": true,
+        "additionalFields": {},
+        "requestOptions": {}
+      },
+      "id": "50d94f69-3ace-494f-b63e-d1401675142c",
+      "name": "Get many users",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        2080,
+        848
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "removeFromGroup",
+        "user": {
+          "__rl": true,
+          "value": "={{ $json.userName }}",
+          "mode": "userName"
+        },
+        "group": {
+          "__rl": true,
+          "value": "={{ $json.groupName }}",
+          "mode": "groupName"
+        },
+        "requestOptions": {}
+      },
+      "id": "deacc107-77d3-4294-9d5a-24c2084e3e59",
+      "name": "Remove user from group",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        2080,
+        1040
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "user": {
+          "__rl": true,
+          "value": "={{ $json.userName }}",
+          "mode": "userName"
+        },
+        "userName": "={{ $json.newUserName }}",
+        "additionalFields": {},
+        "requestOptions": {}
+      },
+      "id": "6ee472ff-ef15-42fb-b533-b5a0b797e568",
+      "name": "Update user",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        2080,
+        1248
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "99e9f0b2-e19b-45c5-a60e-317d772e6291",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "create_group"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "4e72b4c7-eed9-4039-84c7-773a4dee2eb6",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "delete_group"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "a256941b-0882-4ee1-9126-491da78f5fb4",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "get_group"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "a502de56-2efa-4766-b883-65d8cefaab1a",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "get_many_groups"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "e70fb51d-7d2e-4ed2-bdde-7edd03059033",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "update_group"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "90c040e0-c90b-4f6d-9fc9-bc4b1f81a4aa",
+      "name": "Check Type Of Task1",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        3840,
+        608
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\", [\"SUBJECT\", \"iam\"]]"
+        }
+      },
+      "id": "9bd93c22-aab5-4325-ba2b-e423fcff73bc",
+      "name": "GET Email Request1",
+      "type": "n8n-nodes-base.emailReadImap",
+      "position": [
+        3232,
+        656
+      ],
+      "typeVersion": 2,
+      "credentials": {
+        "imap": {
+          "id": "4LROXIHnV4ZtXPW5",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const emailBody = $json[\"textPlain\"] || \"\";\n\n// Helper function to match patterns\nfunction matchFirst(patterns) {\n  for (const pattern of patterns) {\n    const match = emailBody.match(pattern);\n    if (match) return match[1];\n  }\n  return null;\n}\n\n// Detect user name\nconst userName = matchFirst([\n  /user[:\\s*]*([a-zA-Z0-9._-]+)/i,\n  /userName\\s+([a-zA-Z0-9._-]+)/i\n]);\n\n// Detect new username for updates\nconst newUserName = matchFirst([\n  /newusername[:\\s*]*([a-zA-Z0-9._-]+)/i,\n  /new user name\\s+([a-zA-Z0-9._-]+)/i\n]);\n\n// Detect group name\nconst groupName = matchFirst([\n  /group[:\\s*]*([a-zA-Z0-9._-]+)/i,\n  /groupname\\s+([a-zA-Z0-9._-]+)/i\n]);\n\n// Detect new group name for updates\nconst newGroupName = matchFirst([\n  /newgroupname[:\\s*]*([a-zA-Z0-9._-]+)/i,\n  /new group name\\s+([a-zA-Z0-9._-]+)/i\n]);\n\n// Decide task type\nlet task_type = null;\nif (/create user/i.test(emailBody)) task_type = \"create_user\";\nelse if (/delete user/i.test(emailBody)) task_type = \"delete_user\";\nelse if (/Add user /i.test(emailBody)) task_type = \"add_user_to_group\";\nelse if (/get user/i.test(emailBody)) task_type = \"get_user\";\nelse if (/get many user/i.test(emailBody)) task_type = \"get_many_user\";\nelse if (/remove user/i.test(emailBody)) task_type = \"remove_user_from_group\";\nelse if (/update user/i.test(emailBody)) task_type = \"update_user\";\nelse if (/create group/i.test(emailBody)) task_type = \"create_group\";\nelse if (/delete group/i.test(emailBody)) task_type = \"delete_group\";\nelse if (/get group/i.test(emailBody)) task_type = \"get_group\";\nelse if (/get many groups/i.test(emailBody)) task_type = \"get_many_groups\";\nelse if (/update group/i.test(emailBody)) task_type = \"update_group\";\nelse {\n  // Handle unrecognized commands\n  throw new Error(\"Unrecognized command in email body.\");\n}\n\nreturn [\n  {\n    json: {\n      userName,\n      newUserName,\n      groupName,\n      newGroupName,\n      task_type\n    }\n  }\n];\n"
+      },
+      "id": "a7558083-c436-4cf9-9960-15090ae9c0bc",
+      "name": "Extract Data from Email1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3504,
+        656
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// This code is designed for a Function node in an n8n workflow.\n// It generates a structured message (subject and body) for a notification node,\n// such as email, Slack, or Telegram, based on the outcome of a preceding task.\n\n// Retrieve variables passed from previous nodes.\n// The taskType corresponds to the AWS IAM operation being performed.\nconst taskType = $json.task_type || \"\";\nconst userName = $json.UserName || \"\";\nconst groupName = $json.GroupName || \"\";\n// The error message, if the task failed. We'll use this to determine success or failure.\nconst errorMsg = $json.error || \"\";\n// The status variable is not reliable, so we will determine the status based on the error message.\nconst status = errorMsg ? \"fail\" : \"success\";\n\n// Map the task_type variable to a more readable string for the message.\nconst taskMap = {\n  create_user: \"Create User\",\n  delete_user: \"Delete User\",\n  add_user_to_group: \"Add User to Group\",\n  get_user: \"Get User\",\n  get_many_users: \"Get Many Users\", \n  remove_user_from_group: \"Remove User from Group\",\n  update_user: \"Update User\"\n};\n\nlet message = \"\";\n\n// Construct the message based on the status of the task.\n// This logic correctly handles the 'continue if error' setting.\nif (status === \"success\") {\n  // If the status is 'success', create a positive message.\n  // The 'taskMap' ensures a friendly, readable task name.\n  message = `✅ ${taskMap[taskType] || \"IAM Task\"} completed successfully.\\n`;\n  if (userName) message += `User: ${userName}\\n`;\n  if (groupName) message += `Group: ${groupName}\\n`;\n\n  // Special handling for 'get_many_users' to include the list of users.\n  if (taskType === \"get_many_users\" && $json.ResponseMetadata) {\n    const users = $json.ResponseMetadata.Users || $json.ResponseMetadata.users || [];\n    if (users.length > 0) {\n      message += \"\\n--- Extracted Users ---\\n\";\n      users.forEach(user => {\n        message += `- Username: ${user.UserName}\\n`;\n        message += `  Create Date: ${new Date(user.CreateDate).toLocaleDateString()}\\n`;\n        message += `  User ID: ${user.UserId}\\n`;\n        message += `  ARN: ${user.Arn}\\n\\n`;\n      });\n      message += \"-----------------------\\n\";\n    } else {\n      message += \"No users found.\\n\";\n    }\n  }\n\n} else {\n  // If the status is anything other than 'success' (e.g., 'fail'),\n  // create a clear failure message.\n  message = `❌ ${taskMap[taskType] || \"IAM Task\"} failed.\\n`;\n  if (userName) message += `User: ${userName}\\n`;\n  if (groupName) message += `Group: ${groupName}\\n`;\n  // Include the specific error message for easy debugging.\n  if (errorMsg) message += `Error: ${errorMsg}\\n`;\n}\n\n// Return the structured object that can be used by a notification node.\nreturn {\n  json: {\n    // The subject line clearly indicates success or failure.\n    subject: `${status === \"success\" ? \"Success\" : \"Failure\"} - ${taskMap[taskType] || \"IAM Task\"}`,\n    // The body contains the detailed message.\n    body: message\n  }\n};\n"
+      },
+      "id": "0e691076-1f41-425f-88ba-0f65fc41a573",
+      "name": "Make massage For Email1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        4544,
+        656
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "fromEmail": "abc@gmail.com",
+        "toEmail": "={{ $('GET Email Request1').item.json.from }}",
+        "subject": "={{$json[\"subject\"]}}",
+        "emailFormat": "text",
+        "text": "={{ $json.body }}",
+        "options": {
+          "replyTo": "={{ $('GET Email Request1').item.json.from }}"
+        }
+      },
+      "id": "6c21b193-a8a1-4228-9120-d3868b078ca5",
+      "name": "Send Email Response1",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [
+        4912,
+        656
+      ],
+      "webhookId": "9be96438-96fa-48c1-8cea-75c179322fb3",
+      "typeVersion": 2.1,
+      "credentials": {
+        "smtp": {
+          "id": "RPyau0JtylKXWnSr",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "group",
+        "operation": "create",
+        "groupName": "={{ $json.groupName }}",
+        "additionalFields": {},
+        "requestOptions": {}
+      },
+      "id": "8a0ad0cb-3e51-4e50-b1e6-1757c6271893",
+      "name": "Create group",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        4192,
+        208
+      ],
+      "typeVersion": 1,
+      "alwaysOutputData": false,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "group",
+        "operation": "delete",
+        "group": {
+          "__rl": true,
+          "value": "={{ $json.groupName }}",
+          "mode": "groupName"
+        },
+        "requestOptions": {}
+      },
+      "id": "7c94e27b-a0c4-4be0-9961-956271368cdc",
+      "name": "Delete group",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        4192,
+        416
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "group",
+        "operation": "get",
+        "group": {
+          "__rl": true,
+          "value": "={{ $json.groupName }}",
+          "mode": "groupName"
+        },
+        "requestOptions": {}
+      },
+      "id": "28d5e42b-de52-42be-961a-0a9ee7cc6080",
+      "name": "Get group",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        4192,
+        656
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "group",
+        "returnAll": true,
+        "requestOptions": {}
+      },
+      "id": "60f202b2-d242-43b3-95cc-2c27560541c7",
+      "name": "Get many groups",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        4192,
+        880
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "group",
+        "operation": "update",
+        "group": {
+          "__rl": true,
+          "value": "={{ $json.groupName }}",
+          "mode": "groupName"
+        },
+        "groupName": "={{ $json.newGroupName }}",
+        "additionalFields": {},
+        "requestOptions": {}
+      },
+      "id": "8cb50cb6-772c-4bd3-9157-64389d749a0d",
+      "name": "Update group",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        4192,
+        1104
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "99e9f0b2-e19b-45c5-a60e-317d772e6291",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "create_user"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "4e72b4c7-eed9-4039-84c7-773a4dee2eb6",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "delete_user"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "aef1b8b8-9175-4819-9cb8-87209e4b2954",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "add_user_to_group"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "a256941b-0882-4ee1-9126-491da78f5fb4",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "get_user"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "a502de56-2efa-4766-b883-65d8cefaab1a",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "get_many_user"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "62aae8fd-71f2-4194-af78-b8d42179a2d0",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "remove_user_from_group"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "e70fb51d-7d2e-4ed2-bdde-7edd03059033",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "update_user"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "97f43bbc-eb6b-4240-8306-239adc705e3b",
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "create_group",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "00f48743-f57c-4de1-9a55-f10acce69923",
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "delete_group",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5ec48332-9ab0-40db-b161-e12bf6b7fc2c",
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "get_group",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c3f69d46-6e14-40de-9b35-739352a3ba25",
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "get_many_groups",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "864a9bdf-84be-4aa9-871e-97fd01b16891",
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "update_group",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5e818987-747a-4e82-9e53-6b52638b5ed9",
+      "name": "Check Type Of Task2",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        5712,
+        1008
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\", [\"SUBJECT\", \"iam\"]]"
+        }
+      },
+      "id": "b74076ff-1f17-452f-9d31-d452f9a24227",
+      "name": "GET Email Request2",
+      "type": "n8n-nodes-base.emailReadImap",
+      "position": [
+        5008,
+        1168
+      ],
+      "typeVersion": 2,
+      "credentials": {
+        "imap": {
+          "id": "4LROXIHnV4ZtXPW5",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const emailBody = $json[\"textPlain\"] || \"\";\n\n// Helper function to match patterns\nfunction matchFirst(patterns) {\n  for (const pattern of patterns) {\n    const match = emailBody.match(pattern);\n    if (match) return match[1];\n  }\n  return null;\n}\n\n// Detect user name\nconst userName = matchFirst([\n  /user[:\\s*]*([a-zA-Z0-9._-]+)/i,\n  /userName\\s+([a-zA-Z0-9._-]+)/i\n]);\n\n// Detect new username for updates\nconst newUserName = matchFirst([\n  /newusername[:\\s*]*([a-zA-Z0-9._-]+)/i,\n  /new user name\\s+([a-zA-Z0-9._-]+)/i\n]);\n\n// Detect group name\nconst groupName = matchFirst([\n  /group[:\\s*]*([a-zA-Z0-9._-]+)/i,\n  /groupname\\s+([a-zA-Z0-9._-]+)/i\n]);\n\n// Detect new group name for updates\nconst newGroupName = matchFirst([\n  /newgroupname[:\\s*]*([a-zA-Z0-9._-]+)/i,\n  /new group name\\s+([a-zA-Z0-9._-]+)/i\n]);\n\n// Decide task type\nlet task_type = null;\nif (/create user/i.test(emailBody)) task_type = \"create_user\";\nelse if (/delete user/i.test(emailBody)) task_type = \"delete_user\";\nelse if (/Add user /i.test(emailBody)) task_type = \"add_user_to_group\";\nelse if (/get user/i.test(emailBody)) task_type = \"get_user\";\nelse if (/get many user/i.test(emailBody)) task_type = \"get_many_user\";\nelse if (/remove user/i.test(emailBody)) task_type = \"remove_user_from_group\";\nelse if (/update user/i.test(emailBody)) task_type = \"update_user\";\nelse if (/create group/i.test(emailBody)) task_type = \"create_group\";\nelse if (/delete group/i.test(emailBody)) task_type = \"delete_group\";\nelse if (/get group/i.test(emailBody)) task_type = \"get_group\";\nelse if (/get many groups/i.test(emailBody)) task_type = \"get_many_groups\";\nelse if (/update group/i.test(emailBody)) task_type = \"update_group\";\nelse {\n  // Handle unrecognized commands\n  throw new Error(\"Unrecognized command in email body.\");\n}\n\nreturn [\n  {\n    json: {\n      userName,\n      newUserName,\n      groupName,\n      newGroupName,\n      task_type\n    }\n  }\n];\n"
+      },
+      "id": "5e4606d7-6b8b-41f6-a8d0-564d7c2516b0",
+      "name": "Extract Data from Email2",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        5280,
+        1168
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// This code is designed for a Function node in an n8n workflow.\n// It generates a structured message (subject and body) for a notification node,\n// such as email, Slack, or Telegram, based on the outcome of a preceding task.\n\n// Retrieve variables passed from previous nodes.\n// The taskType corresponds to the AWS IAM operation being performed.\nconst taskType = $json.task_type || \"\";\nconst userName = $json.UserName || \"\";\nconst groupName = $json.groupName || \"\";\n// The error message, if the task failed. We'll use this to determine success or failure.\nconst errorMsg = $json.error || \"\";\n// The status variable is not reliable, so we will determine the status based on the error message.\nconst status = errorMsg ? \"fail\" : \"success\";\n\n// Map the task_type variable to a more readable string for the message.\nconst taskMap = {\n  create_user: \"Create User\",\n  delete_user: \"Delete User\",\n  add_user_to_group: \"Add User to Group\",\n  get_user: \"Get User\",\n  get_many_users: \"Get Many Users\", \n  remove_user_from_group: \"Remove User from Group\",\n  update_user: \"Update User\"\n};\n\nlet message = \"\";\n\n// Construct the message based on the status of the task.\n// This logic correctly handles the 'continue if error' setting.\nif (status === \"success\") {\n  // If the status is 'success', create a positive message.\n  // The 'taskMap' ensures a friendly, readable task name.\n  message = `✅ ${taskMap[taskType] || \"IAM Task\"} completed successfully.\\n`;\n  if (userName) message += `User: ${userName}\\n`;\n  if (groupName) message += `Group: ${groupName}\\n`;\n\n  // Special handling for 'get_many_users' to include the list of users.\n  if (taskType === \"get_many_users\" && $json.ResponseMetadata) {\n    const users = $json.ResponseMetadata.Users || $json.ResponseMetadata.users || [];\n    if (users.length > 0) {\n      message += \"\\n--- Extracted Users ---\\n\";\n      users.forEach(user => {\n        message += `- Username: ${user.UserName}\\n`;\n        message += `  Create Date: ${new Date(user.CreateDate).toLocaleDateString()}\\n`;\n        message += `  User ID: ${user.UserId}\\n`;\n        message += `  ARN: ${user.Arn}\\n\\n`;\n      });\n      message += \"-----------------------\\n\";\n    } else {\n      message += \"No users found.\\n\";\n    }\n  }\n\n} else {\n  // If the status is anything other than 'success' (e.g., 'fail'),\n  // create a clear failure message.\n  message = `❌ ${taskMap[taskType] || \"IAM Task\"} failed.\\n`;\n  if (userName) message += `User: ${userName}\\n`;\n  if (groupName) message += `Group: ${groupName}\\n`;\n  // Include the specific error message for easy debugging.\n  if (errorMsg) message += `Error: ${errorMsg}\\n`;\n}\n\n// Return the structured object that can be used by a notification node.\nreturn {\n  json: {\n    // The subject line clearly indicates success or failure.\n    subject: `${status === \"success\" ? \"Success\" : \"Failure\"} - ${taskMap[taskType] || \"IAM Task\"}`,\n    // The body contains the detailed message.\n    body: message\n  }\n};\n"
+      },
+      "id": "eaa1d40c-0c89-452e-80e5-7433f894a13c",
+      "name": "Make massage For Email2",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        7424,
+        1184
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "userName": "={{ $json.userName }}",
+        "additionalFields": {},
+        "requestOptions": {}
+      },
+      "id": "388ca809-1e07-4d69-90f5-696dc098da05",
+      "name": "Create user1",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        6528,
+        32
+      ],
+      "typeVersion": 1,
+      "alwaysOutputData": false,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "user": {
+          "__rl": true,
+          "value": "={{ $json.userName }}",
+          "mode": "userName"
+        },
+        "requestOptions": {}
+      },
+      "id": "1c3c6395-7b87-4bb4-9294-613b0a5b5893",
+      "name": "Delete user1",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        6528,
+        224
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "addToGroup",
+        "user": {
+          "__rl": true,
+          "value": "={{ $json.userName }}",
+          "mode": "userName"
+        },
+        "group": {
+          "__rl": true,
+          "value": "={{ $json.groupName }}",
+          "mode": "groupName"
+        },
+        "requestOptions": {}
+      },
+      "id": "b1b334ee-53d1-4676-944b-6b235b4725a0",
+      "name": "Add user to group1",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        6528,
+        432
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "user": {
+          "__rl": true,
+          "value": "={{ $json.userName }}",
+          "mode": "userName"
+        },
+        "requestOptions": {}
+      },
+      "id": "3f2e2eeb-8b4c-45db-ac56-c4c44e90b4c1",
+      "name": "Get user1",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        6528,
+        624
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "returnAll": true,
+        "additionalFields": {},
+        "requestOptions": {}
+      },
+      "id": "88e7f87e-e59a-4e84-9c54-d96454a3e462",
+      "name": "Get many users1",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        6528,
+        832
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "removeFromGroup",
+        "user": {
+          "__rl": true,
+          "value": "={{ $json.userName }}",
+          "mode": "userName"
+        },
+        "group": {
+          "__rl": true,
+          "value": "={{ $json.groupName }}",
+          "mode": "groupName"
+        },
+        "requestOptions": {}
+      },
+      "id": "642b1ec7-2849-4b7a-91b7-6d7ed617d07d",
+      "name": "Remove user from group1",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        6528,
+        1056
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "user": {
+          "__rl": true,
+          "value": "={{ $json.userName }}",
+          "mode": "userName"
+        },
+        "userName": "={{ $json.newUserName }}",
+        "additionalFields": {},
+        "requestOptions": {}
+      },
+      "id": "a820abfc-fd86-44b0-b118-24cb2cd90f8c",
+      "name": "Update user1",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        6528,
+        1264
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fromEmail": "abc@gmail.com",
+        "toEmail": "={{ $('GET Email Request2').item.json.from }}",
+        "subject": "={{$json[\"subject\"]}}",
+        "emailFormat": "text",
+        "text": "={{ $json.body }}",
+        "options": {
+          "replyTo": "={{ $('GET Email Request2').item.json.from }}"
+        }
+      },
+      "id": "ca9ab18b-638a-444d-a32e-88fde7b05993",
+      "name": "Send Email Response2",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [
+        7856,
+        1184
+      ],
+      "webhookId": "9be96438-96fa-48c1-8cea-75c179322fb3",
+      "typeVersion": 2.1,
+      "credentials": {
+        "smtp": {
+          "id": "RPyau0JtylKXWnSr",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "group",
+        "operation": "create",
+        "groupName": "={{ $json.groupName }}",
+        "additionalFields": {},
+        "requestOptions": {}
+      },
+      "id": "d201f38c-1184-420c-8a75-07c927f90f10",
+      "name": "Create group1",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        6544,
+        1472
+      ],
+      "typeVersion": 1,
+      "alwaysOutputData": false,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "group",
+        "operation": "delete",
+        "group": {
+          "__rl": true,
+          "value": "={{ $json.groupName }}",
+          "mode": "groupName"
+        },
+        "requestOptions": {}
+      },
+      "id": "21b8c8d3-ea68-4a16-9bc9-dd7f91467bb3",
+      "name": "Delete group1",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        6544,
+        1680
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "group",
+        "operation": "get",
+        "group": {
+          "__rl": true,
+          "value": "={{ $json.groupName }}",
+          "mode": "groupName"
+        },
+        "requestOptions": {}
+      },
+      "id": "53173410-99b5-45cf-80f2-854c5cd7833a",
+      "name": "Get group1",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        6544,
+        1920
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "group",
+        "returnAll": true,
+        "requestOptions": {}
+      },
+      "id": "40d6c3dd-2b4f-4ff4-bb97-eaf85ca75663",
+      "name": "Get many groups1",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        6544,
+        2144
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "group",
+        "operation": "update",
+        "group": {
+          "__rl": true,
+          "value": "={{ $json.groupName }}",
+          "mode": "groupName"
+        },
+        "groupName": "={{ $json.newGroupName }}",
+        "additionalFields": {},
+        "requestOptions": {}
+      },
+      "id": "f893ee36-d017-4db4-8000-9f72730fb56d",
+      "name": "Update group1",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [
+        6544,
+        2368
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Check Type Of Task": {
+      "main": [
+        [
+          {
+            "node": "Create user",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete user",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add user to group",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get user",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get many users",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Remove user from group",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update user",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET Email Request": {
+      "main": [
+        [
+          {
+            "node": "Extract Data from Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Data from Email": {
+      "main": [
+        [
+          {
+            "node": "Check Type Of Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make massage For Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create user": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete user": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add user to group": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get user": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many users": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove user from group": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update user": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Type Of Task1": {
+      "main": [
+        [
+          {
+            "node": "Create group",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete group",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get group",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get many groups",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update group",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET Email Request1": {
+      "main": [
+        [
+          {
+            "node": "Extract Data from Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Data from Email1": {
+      "main": [
+        [
+          {
+            "node": "Check Type Of Task1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make massage For Email1": {
+      "main": [
+        [
+          {
+            "node": "Send Email Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create group": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete group": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get group": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many groups": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update group": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Type Of Task2": {
+      "main": [
+        [
+          {
+            "node": "Create user1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete user1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add user to group1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get user1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get many users1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Remove user from group1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update user1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create group1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete group1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get group1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get many groups1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update group1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET Email Request2": {
+      "main": [
+        [
+          {
+            "node": "Extract Data from Email2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Data from Email2": {
+      "main": [
+        [
+          {
+            "node": "Check Type Of Task2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create user1": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete user1": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add user to group1": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get user1": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many users1": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove user from group1": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update user1": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make massage For Email2": {
+      "main": [
+        [
+          {
+            "node": "Send Email Response2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create group1": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete group1": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get group1": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many groups1": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update group1": {
+      "main": [
+        [
+          {
+            "node": "Make massage For Email2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "d2572bd3-d692-42ab-b3ab-0a1797ce424c",
+  "meta": {
+    "templateId": "7241",
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cf0830f74576d2a6e58a0e723cc09a2a46df5589d469e5bee438e5f4f03fbe6a"
+  },
+  "id": "GJu7TruHJAtK1fqr",
+  "tags": []
+}

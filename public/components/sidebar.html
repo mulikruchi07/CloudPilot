@@ -1,0 +1,54 @@
+
+<aside class="sidebar" id="sidebar">
+  <div class="logo-box">
+    <div class="logo-icon">
+      <i class="fas fa-microchip"></i>
+    </div>
+    <div class="logo-text">CloudPilot</div>
+  </div>
+
+  <li class="nav-item" onclick="window.location.href='index.html'">
+  <i class="fas fa-th-large"></i>
+  <span>Dashboard</span>
+</li>
+
+<li class="nav-item" onclick="window.location.href='templates.html'">
+  <i class="fas fa-boxes"></i>
+  <span>Templates</span>
+</li>
+
+<li class="nav-item" onclick="window.location.href='credentials.html'">
+  <i class="fas fa-key"></i>
+  <span>Credentials</span>
+</li>
+
+<li class="nav-item" onclick="window.location.href='settings.html'">
+  <i class="fas fa-cog"></i>
+  <span>Settings</span>
+</li>
+
+
+    <li class="nav-section-title">Management</li>
+    <li class="nav-item" onclick="loadWorkflows()">
+      <i class="fas fa-sync-alt"></i>
+      <span>Sync Data</span>
+    </li>
+    <li class="nav-item">
+      <i class="fas fa-database"></i>
+      <span>Data Sources</span>
+    </li>
+    <li class="nav-item">
+      <i class="fas fa-cog"></i>
+      <span>Settings</span>
+    </li>
+  </ul>
+
+  <div class="user-profile" onclick="logout()">
+    <div class="user-avatar" id="userAvatar">U</div>
+    <div class="user-info">
+      <div class="user-name" id="userName">Loading...</div>
+      <div class="user-email" id="userEmail">user@example.com</div>
+    </div>
+    <i class="fas fa-sign-out-alt" style="color: var(--text-muted);"></i>
+  </div>
+</aside>

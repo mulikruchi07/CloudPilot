@@ -1,0 +1,114 @@
+{
+  "name": "GCS - Combined (All 10 Actions)",
+  "nodes": [
+    {
+      "parameters": {
+        "mailbox": "INBOX",
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\", [\"SUBJECT\", \"gcs\"]]"
+        }
+      },
+      "id": "trigger-comb",
+      "name": "1. GET Email Request (Trigger)",
+      "type": "n8n-nodes-base.emailReadImap",
+      "position": [-1200, 0],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $json.textPlain || \"\";\nconst subject = $json.textSubject || \"\";\n\n// Extract Data\nconst bucketMatch = text.match(/bucket[:\\s]*([a-z0-9-_.]+)/i) || subject.match(/bucket[:\\s]*([a-z0-9-_.]+)/i);\nconst bucketName = bucketMatch ? bucketMatch[1] : null;\n\nconst objectMatch = text.match(/object[:\\s]*([^\\s]+)/i) || subject.match(/object[:\\s]*([^\\s]+)/i);\nconst objectName = objectMatch ? objectMatch[1] : null;\n\n// Determine Task\nlet task_type = \"\";\n// Buckets\nif (/create bucket/i.test(text) || /create bucket/i.test(subject)) task_type = \"create_bucket\";\nelse if (/delete bucket/i.test(text) || /delete bucket/i.test(subject)) task_type = \"delete_bucket\";\nelse if (/list buckets/i.test(text) || /list buckets/i.test(subject)) task_type = \"list_buckets\";\nelse if (/get bucket/i.test(text) || /get bucket/i.test(subject)) task_type = \"get_bucket\";\nelse if (/update bucket/i.test(text) || /update bucket/i.test(subject)) task_type = \"update_bucket\";\n// Objects\nelse if (/create object|upload/i.test(text) || /create object|upload/i.test(subject)) task_type = \"create_object\";\nelse if (/delete object/i.test(text) || /delete object/i.test(subject)) task_type = \"delete_object\";\nelse if (/list objects/i.test(text) || /list objects/i.test(subject)) task_type = \"list_objects\";\nelse if (/get object/i.test(text) || /get object/i.test(subject)) task_type = \"get_object\";\nelse if (/update object/i.test(text) || /update object/i.test(subject)) task_type = \"update_object\";\n\nreturn [{ json: { bucketName, objectName, task_type } }];"
+      },
+      "id": "parser-comb",
+      "name": "2. Extract Data from Email",
+      "type": "n8n-nodes-base.code",
+      "position": [-980, 0],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "conditions": [{ "leftValue": "={{$json.task_type}}", "rightValue": "create_bucket", "operator": { "type": "string", "operation": "equals" } }] } },
+            { "conditions": { "conditions": [{ "leftValue": "={{$json.task_type}}", "rightValue": "delete_bucket", "operator": { "type": "string", "operation": "equals" } }] } },
+            { "conditions": { "conditions": [{ "leftValue": "={{$json.task_type}}", "rightValue": "get_bucket", "operator": { "type": "string", "operation": "equals" } }] } },
+            { "conditions": { "conditions": [{ "leftValue": "={{$json.task_type}}", "rightValue": "list_buckets", "operator": { "type": "string", "operation": "equals" } }] } },
+            { "conditions": { "conditions": [{ "leftValue": "={{$json.task_type}}", "rightValue": "update_bucket", "operator": { "type": "string", "operation": "equals" } }] } },
+            { "conditions": { "conditions": [{ "leftValue": "={{$json.task_type}}", "rightValue": "create_object", "operator": { "type": "string", "operation": "equals" } }] } },
+            { "conditions": { "conditions": [{ "leftValue": "={{$json.task_type}}", "rightValue": "delete_object", "operator": { "type": "string", "operation": "equals" } }] } },
+            { "conditions": { "conditions": [{ "leftValue": "={{$json.task_type}}", "rightValue": "get_object", "operator": { "type": "string", "operation": "equals" } }] } },
+            { "conditions": { "conditions": [{ "leftValue": "={{$json.task_type}}", "rightValue": "list_objects", "operator": { "type": "string", "operation": "equals" } }] } },
+            { "conditions": { "conditions": [{ "leftValue": "={{$json.task_type}}", "rightValue": "update_object", "operator": { "type": "string", "operation": "equals" } }] } }
+          ]
+        }
+      },
+      "id": "switch-comb",
+      "name": "3. Check Type Of Task",
+      "type": "n8n-nodes-base.switch",
+      "position": [-760, 0],
+      "typeVersion": 3
+    },
+    { "parameters": { "resource": "bucket", "operation": "create", "bucketName": "={{$json.bucketName}}" }, "id": "gcs-c-c-b", "name": "Create Bucket", "type": "n8n-nodes-base.googleCloudStorage", "position": [-400, -400], "typeVersion": 1, "onError": "continueRegularOutput" },
+    { "parameters": { "resource": "bucket", "operation": "delete", "bucketName": "={{$json.bucketName}}" }, "id": "gcs-c-d-b", "name": "Delete Bucket", "type": "n8n-nodes-base.googleCloudStorage", "position": [-400, -300], "typeVersion": 1, "onError": "continueRegularOutput" },
+    { "parameters": { "resource": "bucket", "operation": "get", "bucketName": "={{$json.bucketName}}" }, "id": "gcs-c-g-b", "name": "Get Bucket", "type": "n8n-nodes-base.googleCloudStorage", "position": [-400, -200], "typeVersion": 1, "onError": "continueRegularOutput" },
+    { "parameters": { "resource": "bucket", "operation": "getAll", "returnAll": true }, "id": "gcs-c-l-b", "name": "List Buckets", "type": "n8n-nodes-base.googleCloudStorage", "position": [-400, -100], "typeVersion": 1, "onError": "continueRegularOutput" },
+    { "parameters": { "resource": "bucket", "operation": "update", "bucketName": "={{$json.bucketName}}" }, "id": "gcs-c-u-b", "name": "Update Bucket", "type": "n8n-nodes-base.googleCloudStorage", "position": [-400, 0], "typeVersion": 1, "onError": "continueRegularOutput" },
+    { "parameters": { "resource": "object", "operation": "create", "bucketName": "={{$json.bucketName}}", "objectName": "={{$json.objectName}}", "binaryData": false, "content": "Test content" }, "id": "gcs-c-c-o", "name": "Create Object", "type": "n8n-nodes-base.googleCloudStorage", "position": [-400, 100], "typeVersion": 1, "onError": "continueRegularOutput" },
+    { "parameters": { "resource": "object", "operation": "delete", "bucketName": "={{$json.bucketName}}", "objectName": "={{$json.objectName}}" }, "id": "gcs-c-d-o", "name": "Delete Object", "type": "n8n-nodes-base.googleCloudStorage", "position": [-400, 200], "typeVersion": 1, "onError": "continueRegularOutput" },
+    { "parameters": { "resource": "object", "operation": "get", "bucketName": "={{$json.bucketName}}", "objectName": "={{$json.objectName}}" }, "id": "gcs-c-g-o", "name": "Get Object", "type": "n8n-nodes-base.googleCloudStorage", "position": [-400, 300], "typeVersion": 1, "onError": "continueRegularOutput" },
+    { "parameters": { "resource": "object", "operation": "getAll", "bucketName": "={{$json.bucketName}}", "returnAll": true }, "id": "gcs-c-l-o", "name": "List Objects", "type": "n8n-nodes-base.googleCloudStorage", "position": [-400, 400], "typeVersion": 1, "onError": "continueRegularOutput" },
+    { "parameters": { "resource": "object", "operation": "update", "bucketName": "={{$json.bucketName}}", "objectName": "={{$json.objectName}}" }, "id": "gcs-c-u-o", "name": "Update Object", "type": "n8n-nodes-base.googleCloudStorage", "position": [-400, 500], "typeVersion": 1, "onError": "continueRegularOutput" },
+    {
+      "parameters": {
+        "jsCode": "const taskType = $json.task_type || \"\";\nconst bucketName = $json.bucketName || \"\";\nconst objectName = $json.objectName || \"\";\nconst errorMsg = $json.error || \"\";\nconst isFailure = !!errorMsg;\n\nconst taskMap = {\n  create_bucket: \"Create GCS Bucket\",\n  delete_bucket: \"Delete GCS Bucket\",\n  get_bucket: \"Get GCS Bucket\",\n  list_buckets: \"List GCS Buckets\",\n  update_bucket: \"Update GCS Bucket\",\n  create_object: \"Create GCS Object\",\n  delete_object: \"Delete GCS Object\",\n  get_object: \"Get GCS Object\",\n  list_objects: \"List GCS Objects\",\n  update_object: \"Update GCS Object\"\n};\n\nlet subject = \"\";\nlet message = \"\";\n\nif (isFailure) {\n    subject = `❌ Failure - ${taskMap[taskType] || \"GCS Task\"}`;\n    message = `❌ ${taskMap[taskType] || \"Task\"} failed.\\n`;\n    if (bucketName) message += `Bucket: ${bucketName}\\n`;\n    if (objectName) message += `Object: ${objectName}\\n`;\n    message += `Error: ${errorMsg}\\n`;\n} else {\n    subject = `✅ Success - ${taskMap[taskType] || \"GCS Task\"}`;\n    message = `✅ ${taskMap[taskType] || \"Task\"} completed successfully.\\n`;\n    if (bucketName) message += `Bucket: ${bucketName}\\n`;\n    if (objectName) message += `Object: ${objectName}\\n`;\n    \n    // Handle Lists\n    if (taskType === \"list_buckets\" || taskType === \"list_objects\") {\n        const items = $input.all().map(i => i.json.name).join(\"\\n\");\n        if (items.length > 0) {\n             message += `\\nItems Found:\\n${items}`;\n        } else {\n             message += \"\\nNo items found.\";\n        }\n    }\n}\n\nreturn { json: { subject, body: message } };"
+      },
+      "id": "response-comb",
+      "name": "4. Make Response Email",
+      "type": "n8n-nodes-base.code",
+      "position": [-100, 0],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "fromEmail": "bot@example.com",
+        "toEmail": "={{ $('1. GET Email Request (Trigger)').item.json.from }}",
+        "subject": "={{$json.subject}}",
+        "text": "={{$json.body}}",
+        "options": { "replyTo": "={{ $('1. GET Email Request (Trigger)').item.json.from }}" }
+      },
+      "id": "send-comb",
+      "name": "5. Send Email Response",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [100, 0],
+      "typeVersion": 2
+    }
+  ],
+  "connections": {
+    "1. GET Email Request (Trigger)": { "main": [[{ "node": "2. Extract Data from Email", "type": "main", "index": 0 }]] },
+    "2. Extract Data from Email": { "main": [[{ "node": "3. Check Type Of Task", "type": "main", "index": 0 }]] },
+    "3. Check Type Of Task": {
+      "main": [
+        [{ "node": "Create Bucket", "type": "main", "index": 0 }],
+        [{ "node": "Delete Bucket", "type": "main", "index": 0 }],
+        [{ "node": "Get Bucket", "type": "main", "index": 0 }],
+        [{ "node": "List Buckets", "type": "main", "index": 0 }],
+        [{ "node": "Update Bucket", "type": "main", "index": 0 }],
+        [{ "node": "Create Object", "type": "main", "index": 0 }],
+        [{ "node": "Delete Object", "type": "main", "index": 0 }],
+        [{ "node": "Get Object", "type": "main", "index": 0 }],
+        [{ "node": "List Objects", "type": "main", "index": 0 }],
+        [{ "node": "Update Object", "type": "main", "index": 0 }]
+      ]
+    },
+    "Create Bucket": { "main": [[{ "node": "4. Make Response Email", "type": "main", "index": 0 }]] },
+    "Delete Bucket": { "main": [[{ "node": "4. Make Response Email", "type": "main", "index": 0 }]] },
+    "Get Bucket": { "main": [[{ "node": "4. Make Response Email", "type": "main", "index": 0 }]] },
+    "List Buckets": { "main": [[{ "node": "4. Make Response Email", "type": "main", "index": 0 }]] },
+    "Update Bucket": { "main": [[{ "node": "4. Make Response Email", "type": "main", "index": 0 }]] },
+    "Create Object": { "main": [[{ "node": "4. Make Response Email", "type": "main", "index": 0 }]] },
+    "Delete Object": { "main": [[{ "node": "4. Make Response Email", "type": "main", "index": 0 }]] },
+    "Get Object": { "main": [[{ "node": "4. Make Response Email", "type": "main", "index": 0 }]] },
+    "List Objects": { "main": [[{ "node": "4. Make Response Email", "type": "main", "index": 0 }]] },
+    "Update Object": { "main": [[{ "node": "4. Make Response Email", "type": "main", "index": 0 }]] },
+    "4. Make Response Email": { "main": [[{ "node": "5. Send Email Response", "type": "main", "index": 0 }]] }
+  }
+}
