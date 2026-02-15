@@ -3,8 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Login | CloudPilot</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<title>Sign In | CloudPilot</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" crossorigin="anonymous">
+
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 
@@ -16,26 +18,20 @@
     --primary-light: #818cf8;
     --accent: #f43f5e;
     --success: #10b981;
-    --bg-dark: #0f172a;
-    --bg-secondary: #1e293b;
+    --bg-main: #f8fafc;
+    --card-white: #ffffff;
     --text-main: #0f172a;
     --text-secondary: #475569;
     --text-muted: #64748b;
-    --text-light: #f8fafc;
     --border: #e2e8f0;
-    --card-white: #ffffff;
-    --radius-sm: 8px;
     --radius-md: 12px;
     --radius-lg: 16px;
-    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
   }
 
   body {
     font-family: 'Manrope', sans-serif;
-    background: var(--bg-dark);
-    color: var(--text-main);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -45,46 +41,42 @@
     overflow: hidden;
   }
 
-  /* Background Effect */
+  /* Animated Background */
   body::before {
     content: '';
     position: absolute;
-    width: 600px;
-    height: 600px;
-    background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
-    top: -200px;
-    right: -200px;
-    border-radius: 50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+    background-size: 50px 50px;
+    animation: float 20s linear infinite;
+    z-index: 0;
   }
 
-  body::after {
-    content: '';
-    position: absolute;
-    width: 500px;
-    height: 500px;
-    background: radial-gradient(circle, rgba(129, 140, 248, 0.1) 0%, transparent 70%);
-    bottom: -150px;
-    left: -150px;
-    border-radius: 50%;
+  @keyframes float {
+    from { transform: translate(0, 0); }
+    to { transform: translate(-50px, -50px); }
   }
 
   .login-container {
     width: 100%;
-    max-width: 440px;
+    max-width: 400px;
     position: relative;
     z-index: 1;
   }
 
-  .logo-section {
-    text-align: center;
-    margin-bottom: 2.5rem;
+  .login-card {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border-radius: var(--radius-lg);
+    padding: 2rem 2rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.3);
   }
 
-  .logo-box {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 1rem;
+  .logo-section {
+    text-align: center;
+    margin-bottom: 1.5rem;
   }
 
   .logo-icon {
@@ -92,47 +84,24 @@
     height: 50px;
     background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
     border-radius: 12px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     font-size: 24px;
     color: white;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
   }
 
-  .logo-text {
-    font-size: 28px;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-    color: white;
-  }
-
-  .logo-tagline {
-    font-size: 14px;
-    color: var(--text-muted);
-  }
-
-  .login-card {
-    background: var(--card-white);
-    border-radius: var(--radius-lg);
-    padding: 2.5rem;
-    box-shadow: var(--shadow-lg);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-
-  .card-header {
-    text-align: center;
-    margin-bottom: 2rem;
-  }
-
-  .card-title {
+  .logo-section h1 {
     font-size: 24px;
     font-weight: 800;
     color: var(--text-main);
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
 
-  .card-subtitle {
-    font-size: 14px;
+  .logo-section p {
+    font-size: 13px;
     color: var(--text-muted);
   }
 
@@ -142,10 +111,10 @@
 
   .form-label {
     display: block;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     color: var(--text-main);
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
 
   .input-wrapper {
@@ -154,19 +123,19 @@
 
   .input-icon {
     position: absolute;
-    left: 16px;
+    left: 14px;
     top: 50%;
     transform: translateY(-50%);
     color: var(--text-muted);
-    font-size: 16px;
+    font-size: 14px;
   }
 
   .form-input {
     width: 100%;
-    padding: 12px 16px 12px 48px;
+    padding: 11px 14px 11px 40px;
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
-    background: white;
+    background: var(--card-white);
     font-family: inherit;
     font-size: 14px;
     transition: all 0.2s;
@@ -178,18 +147,17 @@
     box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.08);
   }
 
-  .form-input::placeholder {
-    color: var(--text-muted);
-  }
-
   .password-toggle {
     position: absolute;
     right: 16px;
     top: 50%;
     transform: translateY(-50%);
+    background: none;
+    border: none;
     color: var(--text-muted);
     cursor: pointer;
     font-size: 16px;
+    padding: 4px;
     transition: color 0.2s;
   }
 
@@ -197,105 +165,89 @@
     color: var(--primary);
   }
 
-  .form-options {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
+  .forgot-password {
+    text-align: right;
+    margin-top: -0.5rem;
+    margin-bottom: 1.25rem;
   }
 
-  .checkbox-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .checkbox-wrapper input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-    accent-color: var(--primary);
-  }
-
-  .checkbox-label {
-    font-size: 14px;
-    color: var(--text-secondary);
-    cursor: pointer;
-  }
-
-  .forgot-link {
-    font-size: 14px;
+  .forgot-password a {
+    font-size: 12px;
     color: var(--primary);
     text-decoration: none;
     font-weight: 600;
     transition: color 0.2s;
   }
 
-  .forgot-link:hover {
+  .forgot-password a:hover {
     color: var(--primary-dark);
   }
 
-  .btn-login {
+  .btn-primary {
     width: 100%;
-    padding: 13px;
     background: var(--primary);
     color: white;
-    border: none;
+    padding: 12px;
     border-radius: var(--radius-md);
-    font-family: inherit;
-    font-size: 15px;
     font-weight: 700;
+    font-size: 14px;
+    border: none;
     cursor: pointer;
     transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    margin-bottom: 1rem;
   }
 
-  .btn-login:hover {
+  .btn-primary:hover:not(:disabled) {
     background: var(--primary-dark);
     transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
+    box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
   }
 
-  .btn-login:active {
-    transform: translateY(0);
+  .btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .divider {
     display: flex;
     align-items: center;
-    gap: 16px;
-    margin: 1.5rem 0;
+    gap: 1rem;
+    margin: 1.25rem 0;
   }
 
-  .divider-line {
+  .divider::before,
+  .divider::after {
+    content: '';
     flex: 1;
     height: 1px;
     background: var(--border);
   }
 
-  .divider-text {
-    font-size: 13px;
+  .divider span {
+    font-size: 12px;
     color: var(--text-muted);
-    font-weight: 500;
+    font-weight: 600;
   }
 
-  .social-login {
+  .social-buttons {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 1.5rem;
+    gap: 10px;
+    margin-bottom: 1.25rem;
   }
 
   .btn-social {
-    padding: 12px;
-    background: white;
-    border: 1px solid var(--border);
+    width: 100%;
+    padding: 10px;
     border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--card-white);
+    color: var(--text-main);
     font-family: inherit;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
@@ -303,62 +255,89 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    color: var(--text-secondary);
   }
 
   .btn-social:hover {
-    background: #f8fafc;
+    background: var(--bg-main);
     border-color: var(--primary);
-    color: var(--primary);
+    transform: translateY(-1px);
   }
 
-  .signup-prompt {
-    text-align: center;
-    font-size: 14px;
-    color: var(--text-secondary);
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--border);
+  .btn-social i {
+    font-size: 16px;
   }
 
   .signup-link {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .signup-link a {
     color: var(--primary);
     text-decoration: none;
     font-weight: 700;
-    margin-left: 4px;
     transition: color 0.2s;
   }
 
-  .signup-link:hover {
+  .signup-link a:hover {
     color: var(--primary-dark);
   }
 
   .alert {
-    padding: 12px 16px;
+    padding: 10px 14px;
     border-radius: var(--radius-md);
+    font-size: 13px;
     margin-bottom: 1.25rem;
-    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     display: none;
   }
 
-  .alert.error {
-    background: rgba(244, 63, 94, 0.1);
-    color: var(--accent);
-    border: 1px solid rgba(244, 63, 94, 0.2);
+  .alert.show {
+    display: flex;
   }
 
-  .alert.success {
+  .alert-error {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+
+  .alert-success {
     background: rgba(16, 185, 129, 0.1);
-    color: var(--success);
+    color: #059669;
     border: 1px solid rgba(16, 185, 129, 0.2);
   }
 
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Responsive */
   @media (max-width: 480px) {
     .login-card {
-      padding: 2rem 1.5rem;
+      padding: 1.5rem 1.25rem;
     }
 
-    .social-login {
-      grid-template-columns: 1fr;
+    .logo-section h1 {
+      font-size: 22px;
+    }
+
+    .logo-icon {
+      width: 45px;
+      height: 45px;
+      font-size: 22px;
     }
   }
 </style>
@@ -366,20 +345,13 @@
 <body>
 
 <div class="login-container">
-  <div class="logo-section">
-    <div class="logo-box">
+  <div class="login-card">
+    <div class="logo-section">
       <div class="logo-icon">
         <i class="fas fa-microchip"></i>
       </div>
-      <div class="logo-text">CloudPilot</div>
-    </div>
-    <p class="logo-tagline">Automate Your Workflow, Elevate Your Productivity</p>
-  </div>
-
-  <div class="login-card">
-    <div class="card-header">
-      <h1 class="card-title">Welcome Back</h1>
-      <p class="card-subtitle">Sign in to access your dashboard</p>
+      <h1>Welcome Back</h1>
+      <p>Sign in to your CloudPilot account</p>
     </div>
 
     <div id="alertBox" class="alert"></div>
@@ -393,8 +365,9 @@
             type="email"
             id="email"
             class="form-input"
-            placeholder="Enter your email"
+            placeholder="you@example.com"
             required
+            autocomplete="email"
           >
         </div>
       </div>
@@ -407,110 +380,153 @@
             type="password"
             id="password"
             class="form-input"
-            placeholder="Enter your password"
+            placeholder="••••••••"
             required
+            autocomplete="current-password"
           >
-          <i class="password-toggle fas fa-eye" id="togglePassword"></i>
+          <button type="button" class="password-toggle" onclick="togglePassword()">
+            <i class="fas fa-eye" id="passwordIcon"></i>
+          </button>
         </div>
       </div>
 
-      <div class="form-options">
-        <div class="checkbox-wrapper">
-          <input type="checkbox" id="rememberMe">
-          <label class="checkbox-label" for="rememberMe">Remember me</label>
-        </div>
-        <a href="forgot-password.html" class="forgot-link">Forgot Password?</a>
+      <div class="forgot-password">
+        <a href="#" onclick="alert('Password reset coming soon!'); return false;">Forgot password?</a>
       </div>
 
-      <button type="submit" class="btn-login">
-        <i class="fas fa-sign-in-alt"></i>
-        Sign In
+      <button type="submit" class="btn-primary" id="submitBtn">
+        <span id="btnText">Sign In</span>
       </button>
     </form>
 
     <div class="divider">
-      <div class="divider-line"></div>
-      <span class="divider-text">Or continue with</span>
-      <div class="divider-line"></div>
+      <span>Or continue with</span>
     </div>
 
-    <div class="social-login">
-      <button class="btn-social" onclick="socialLogin('google')">
+    <div class="social-buttons">
+      <button class="btn-social" onclick="handleGoogleLogin()">
         <i class="fab fa-google"></i>
-        Google
+        <span>Google</span>
       </button>
-      <button class="btn-social" onclick="socialLogin('github')">
+      <button class="btn-social" onclick="handleGithubLogin()">
         <i class="fab fa-github"></i>
-        GitHub
+        <span>GitHub</span>
       </button>
     </div>
 
-    <div class="signup-prompt">
-      Don't have an account?
-      <a href="signup.html" class="signup-link">Create Account</a>
+    <div class="signup-link">
+      Don't have an account? <a href="signup.html">Sign up</a>
     </div>
   </div>
 </div>
 
-<script>
-  // Password toggle
-  const togglePassword = document.getElementById('togglePassword');
-  const passwordInput = document.getElementById('password');
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-  togglePassword.addEventListener('click', function() {
-    const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-    passwordInput.setAttribute('type', type);
-    this.classList.toggle('fa-eye');
-    this.classList.toggle('fa-eye-slash');
-  });
+  // IMPORTANT: Replace with your actual Supabase credentials
+  const SUPABASE_URL = 'https://pzrvxyhxfwagexrbisfa.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6cnZ4eWh4ZndhZ2V4cmJpc2ZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5NDE4NTUsImV4cCI6MjA4NjUxNzg1NX0.egQt4OZ7qKzXepeSM0pf3LZ8N_Qh4AhT8Mu00NSYEA0';
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Check if already logged in
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+    window.location.href = 'index.html';
+  }
 
   // Form submission
-  const loginForm = document.getElementById('loginForm');
-  const alertBox = document.getElementById('alertBox');
-
-  loginForm.addEventListener('submit', async function(e) {
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
-    const rememberMe = document.getElementById('rememberMe').checked;
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = document.getElementById('btnText');
 
     // Show loading state
-    const submitBtn = loginForm.querySelector('button[type="submit"]');
-    const originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
     submitBtn.disabled = true;
+    btnText.innerHTML = '<div class="spinner"></div><span>Signing in...</span>';
 
-    // Simulate API call
-    setTimeout(() => {
-      // Demo credentials
-      if (email === 'demo@cloudpilot.com' && password === 'demo123') {
-        showAlert('Login successful! Redirecting...', 'success');
-        setTimeout(() => {
-          window.location.href = 'dashboard.html';
-        }, 1000);
-      } else {
-        showAlert('Invalid email or password. Try demo@cloudpilot.com / demo123', 'error');
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
-      }
-    }, 1000);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) throw error;
+
+      showAlert('Success! Redirecting...', 'success');
+      setTimeout(() => {
+        window.location.href = 'index.html';
+      }, 1000);
+
+    } catch (error) {
+      showAlert(error.message, 'error');
+      submitBtn.disabled = false;
+      btnText.textContent = 'Sign In';
+    }
   });
 
-  function showAlert(message, type) {
-    alertBox.textContent = message;
-    alertBox.className = `alert ${type}`;
-    alertBox.style.display = 'block';
+  // Password toggle
+  window.togglePassword = function() {
+    const passwordInput = document.getElementById('password');
+    const passwordIcon = document.getElementById('passwordIcon');
 
-    if (type === 'error') {
-      setTimeout(() => {
-        alertBox.style.display = 'none';
-      }, 5000);
+    if (passwordInput.type === 'password') {
+      passwordInput.type = 'text';
+      passwordIcon.classList.remove('fa-eye');
+      passwordIcon.classList.add('fa-eye-slash');
+    } else {
+      passwordInput.type = 'password';
+      passwordIcon.classList.remove('fa-eye-slash');
+      passwordIcon.classList.add('fa-eye');
     }
-  }
+  };
 
-  function socialLogin(provider) {
-    showAlert(`${provider.charAt(0).toUpperCase() + provider.slice(1)} login coming soon!`, 'error');
+  // Social login handlers
+  window.handleGoogleLogin = async function() {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + '/index.html'
+        }
+      });
+      if (error) throw error;
+    } catch (error) {
+      showAlert(error.message, 'error');
+    }
+  };
+
+  window.handleGithubLogin = async function() {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'github',
+        options: {
+          redirectTo: window.location.origin + '/index.html'
+        }
+      });
+      if (error) throw error;
+    } catch (error) {
+      showAlert(error.message, 'error');
+    }
+  };
+
+  // Alert helper
+  function showAlert(message, type) {
+    const alertBox = document.getElementById('alertBox');
+    alertBox.className = `alert alert-${type} show`;
+    alertBox.innerHTML = `
+      <i class="fas fa-${type === 'error' ? 'exclamation-circle' : 'check-circle'}"></i>
+      <span>${message}</span>
+    `;
+
+    if (type === 'success') {
+      setTimeout(() => {
+        alertBox.classList.remove('show');
+      }, 3000);
+    }
   }
 </script>
 

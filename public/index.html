@@ -4,7 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Workflow Hub | CloudPilot Dashboard</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<!-- Favicon to prevent 404 error -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+
+<!-- Using jsdelivr CDN instead of cdnjs to avoid tracking prevention -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" crossorigin="anonymous">
+
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 
@@ -40,6 +46,36 @@
     color: var(--text-main);
     display: flex;
     min-height: 100vh;
+    overflow-y: auto;
+  }
+
+  /* Loading Spinner */
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    backdrop-filter: blur(8px);
+  }
+
+  .loading-overlay.hidden {
+    display: none;
+  }
+
+  .spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid rgba(99, 102, 241, 0.2);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   /* Sidebar */
@@ -53,6 +89,7 @@
     position: fixed;
     height: 100vh;
     overflow-y: auto;
+    z-index: 100;
   }
 
   .logo-box {
@@ -213,11 +250,12 @@
     display: flex;
     gap: 12px;
     align-items: center;
+    flex-wrap: wrap;
   }
 
   .search-wrapper {
     position: relative;
-    width: 320px;
+    min-width: 280px;
   }
 
   .search-wrapper i {
@@ -305,6 +343,7 @@
     border: 1px solid var(--border);
     position: relative;
     overflow: hidden;
+    transition: all 0.3s;
   }
 
   .stat-card::before {
@@ -317,6 +356,11 @@
     background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
     opacity: 0;
     transition: opacity 0.3s;
+  }
+
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
   }
 
   .stat-card:hover::before {
@@ -543,7 +587,7 @@
 
   .wf-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
   }
 
@@ -579,15 +623,6 @@
 
   .wf-btn.secondary:hover {
     background: var(--border);
-  }
-
-  .wf-btn.danger {
-    background: rgba(244, 63, 94, 0.1);
-    color: var(--accent);
-  }
-
-  .wf-btn.danger:hover {
-    background: rgba(244, 63, 94, 0.2);
   }
 
   /* Modal */
@@ -651,57 +686,22 @@
     color: var(--text-main);
   }
 
-  .form-group {
-    margin-bottom: 1.25rem;
-  }
-
-  .form-label {
-    display: block;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-main);
-    margin-bottom: 8px;
-  }
-
-  .form-input {
-    width: 100%;
-    padding: 11px 16px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border);
-    background: var(--card-white);
-    font-family: inherit;
-    font-size: 14px;
-    transition: all 0.2s;
-  }
-
-  .form-input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.08);
-  }
-
-  .form-textarea {
-    min-height: 100px;
-    resize: vertical;
-  }
-
-  .modal-actions {
-    display: flex;
-    gap: 12px;
-    margin-top: 1.5rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--border);
-  }
-
-  .details-grid {
+  .timeline-item {
+    padding: 1rem;
     background: var(--bg-secondary);
-    padding: 1.5rem;
     border-radius: var(--radius-md);
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-    overflow-x: auto;
-    max-height: 400px;
-    overflow-y: auto;
+    margin-bottom: 0.75rem;
+    border-left: 3px solid var(--success);
+  }
+
+  .timeline-item.failed {
+    border-left-color: var(--accent);
+  }
+
+  .empty-timeline {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-muted);
   }
 
   /* Empty State */
@@ -709,6 +709,9 @@
     text-align: center;
     padding: 4rem 2rem;
     color: var(--text-muted);
+    background: var(--card-white);
+    border-radius: var(--radius-lg);
+    border: 2px dashed var(--border);
   }
 
   .empty-state i {
@@ -760,6 +763,7 @@
     }
     .search-wrapper {
       width: 100%;
+      min-width: auto;
     }
     .stats-grid {
       grid-template-columns: repeat(2, 1fr);
@@ -771,6 +775,11 @@
 </style>
 </head>
 <body>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+</div>
 
 <aside class="sidebar" id="sidebar">
   <div class="logo-box">
@@ -808,17 +817,17 @@
       <i class="fas fa-database"></i>
       <span>Data Sources</span>
     </li>
-    <li class="nav-item" onclick="openSettings()">
+    <li class="nav-item">
       <i class="fas fa-cog"></i>
       <span>Settings</span>
     </li>
   </ul>
 
   <div class="user-profile" onclick="logout()">
-    <div class="user-avatar">JD</div>
+    <div class="user-avatar" id="userAvatar">U</div>
     <div class="user-info">
-      <div class="user-name">John Doe</div>
-      <div class="user-email">john@example.com</div>
+      <div class="user-name" id="userName">Loading...</div>
+      <div class="user-email" id="userEmail">user@example.com</div>
     </div>
     <i class="fas fa-sign-out-alt" style="color: var(--text-muted);"></i>
   </div>
@@ -904,10 +913,10 @@
           <i class="fas fa-bolt"></i>
         </div>
       </div>
-      <div class="stat-value" id="recentRuns" style="font-size: 20px; font-weight: 700;">Offline</div>
+      <div class="stat-value" id="systemStatus" style="font-size: 20px; font-weight: 700;">Loading...</div>
       <div class="stat-trend">
         <i class="fas fa-circle" style="font-size: 8px;"></i>
-        <span>Last sync: Never</span>
+        <span id="lastSync">Checking...</span>
       </div>
     </div>
   </section>
@@ -929,9 +938,9 @@
       <i class="fas fa-project-diagram"></i>
       <h3>No workflows found</h3>
       <p>Start by creating your first automation workflow or sync with the server</p>
-      <button class="btn-create" onclick="openNewWorkflow()">
-        <i class="fas fa-plus"></i>
-        Create Workflow
+      <button class="btn-create" onclick="loadWorkflows()">
+        <i class="fas fa-sync-alt"></i>
+        Sync Workflows
       </button>
     </div>
   </div>
@@ -949,209 +958,6 @@
   </div>
 </div>
 
-<script>
-  const API_BASE = 'http://localhost:4000/api/workflows';
-  let workflows = [];
-
-  async function loadWorkflows() {
-    const grid = document.getElementById('workflowsGrid');
-    try {
-      const res = await fetch(API_BASE);
-      if (!res.ok) throw new Error('Server error');
-      const data = await res.json();
-      workflows = data.data || [];
-      updateStats();
-      renderWorkflows();
-    } catch (err) {
-      grid.innerHTML = `
-        <div class="empty-state">
-          <i class="fas fa-exclamation-triangle"></i>
-          <h3>Connection Failed</h3>
-          <p>Unable to connect to the API server at localhost:4000</p>
-          <button class="btn-create" onclick="loadWorkflows()">
-            <i class="fas fa-sync"></i>
-            Retry Connection
-          </button>
-        </div>
-      `;
-    }
-  }
-
-  function updateStats() {
-    const active = workflows.filter(w => w.active).length;
-    document.getElementById('totalWorkflows').textContent = workflows.length;
-    document.getElementById('activeWorkflows').textContent = active;
-    document.getElementById('inactiveWorkflows').textContent = workflows.length - active;
-    document.getElementById('recentRuns').textContent = workflows.length > 0 ? 'Online' : 'Offline';
-  }
-
-  function renderWorkflows() {
-    const grid = document.getElementById('workflowsGrid');
-    const query = document.getElementById('searchInput').value.toLowerCase();
-    const filtered = workflows.filter(w => (w.name || '').toLowerCase().includes(query));
-
-    if (filtered.length === 0) {
-      grid.innerHTML = `
-        <div class="empty-state">
-          <i class="fas fa-search"></i>
-          <h3>No workflows found</h3>
-          <p>Try adjusting your search or create a new workflow</p>
-        </div>
-      `;
-      return;
-    }
-
-    grid.innerHTML = filtered.map(w => `
-      <div class="wf-card">
-        <div class="wf-header">
-          <div class="wf-title-group">
-            <h3>${w.name || 'Untitled Workflow'}</h3>
-            <span class="wf-id">${w.id}</span>
-          </div>
-          <span class="status-badge ${w.active ? 'active' : 'inactive'}">
-            <span class="status-dot"></span>
-            ${w.active ? 'Active' : 'Inactive'}
-          </span>
-        </div>
-
-        <div class="wf-meta">
-          <div class="meta-item">
-            <i class="far fa-calendar-alt"></i>
-            <span>Created ${formatDate(w.createdAt)}</span>
-          </div>
-          <div class="meta-item">
-            <i class="far fa-clock"></i>
-            <span>Updated ${formatDate(w.updatedAt)}</span>
-          </div>
-        </div>
-
-        <div class="wf-actions">
-          <button class="wf-btn primary" onclick="runWorkflow('${w.id}')">
-            <i class="fas fa-play"></i>
-            Run
-          </button>
-          <button class="wf-btn ${w.active ? 'danger' : 'secondary'}" onclick="toggleWorkflow('${w.id}', ${w.active})">
-            <i class="fas fa-power-off"></i>
-            ${w.active ? 'Stop' : 'Start'}
-          </button>
-          <button class="wf-btn secondary" onclick="viewDetails('${w.id}')">
-            <i class="fas fa-info-circle"></i>
-            Info
-          </button>
-        </div>
-      </div>
-    `).join('');
-  }
-
-  function formatDate(d) {
-    if (!d) return 'N/A';
-    const date = new Date(d);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  }
-
-  async function runWorkflow(id) {
-    try {
-      await fetch(`${API_BASE}/${id}/run`, { method: 'POST' });
-      showNotification('Workflow triggered successfully!', 'success');
-    } catch (err) {
-      showNotification('Failed to trigger workflow', 'error');
-    }
-  }
-
-  async function toggleWorkflow(id, active) {
-    try {
-      await fetch(`${API_BASE}/${id}/toggle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: !active })
-      });
-      loadWorkflows();
-      showNotification(`Workflow ${!active ? 'activated' : 'deactivated'}`, 'success');
-    } catch (err) {
-      showNotification('Failed to update workflow', 'error');
-    }
-  }
-
-  function viewDetails(id) {
-    const wf = workflows.find(w => w.id === id);
-    const content = `
-      <div class="details-grid">${JSON.stringify(wf, null, 2)}</div>
-    `;
-    showModal(wf.name || 'Workflow Details', content);
-  }
-
-  function openNewWorkflow() {
-    const content = `
-      <div class="form-group">
-        <label class="form-label">Workflow Name</label>
-        <input type="text" id="wfName" class="form-input" placeholder="Enter workflow name">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Description</label>
-        <textarea id="wfDesc" class="form-input form-textarea" placeholder="Enter description (optional)"></textarea>
-      </div>
-      <div class="modal-actions">
-        <button class="wf-btn secondary" onclick="closeModal()" style="flex: 1;">Cancel</button>
-        <button class="wf-btn primary" onclick="createWorkflow()" style="flex: 1;">
-          <i class="fas fa-check"></i>
-          Create Workflow
-        </button>
-      </div>
-    `;
-    showModal('Create New Workflow', content);
-  }
-
-  async function createWorkflow() {
-    const name = document.getElementById('wfName').value;
-    const desc = document.getElementById('wfDesc').value;
-
-    if (!name) {
-      showNotification('Please enter a workflow name', 'error');
-      return;
-    }
-
-    try {
-      await fetch(API_BASE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description: desc })
-      });
-      closeModal();
-      loadWorkflows();
-      showNotification('Workflow created successfully!', 'success');
-    } catch (err) {
-      showNotification('Failed to create workflow', 'error');
-    }
-  }
-
-  function openSettings() {
-    showNotification('Settings panel coming soon!', 'info');
-  }
-
-  function logout() {
-    if (confirm('Are you sure you want to logout?')) {
-      window.location.href = 'login.html';
-    }
-  }
-
-  function showModal(title, content) {
-    document.getElementById('modalTitle').textContent = title;
-    document.getElementById('modalBody').innerHTML = content;
-    document.getElementById('modal').classList.add('active');
-  }
-
-  function closeModal() {
-    document.getElementById('modal').classList.remove('active');
-  }
-
-  function showNotification(message, type) {
-    alert(message);
-  }
-
-  document.getElementById('searchInput').addEventListener('input', renderWorkflows);
-
-  loadWorkflows();
-</script>
-
+<script type="module" src="./script.js"></script>
 </body>
 </html>
