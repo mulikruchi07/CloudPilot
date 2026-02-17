@@ -1,180 +1,226 @@
-// routes/templates.js
-import { createClient } from '@supabase/supabase-js';
-import { decryptCredential } from '../utils/encryption.js';
-import fetch from 'node-fetch';
+// routes/templates.js - Template marketplace + import pipeline
+import { Router } from 'express';
+import { requireAuth } from '../middleware/auth.js';
+import { getSupabaseAdmin } from '../utils/supabase.js';
+import { n8nRequest } from '../utils/n8n.js';
+import { getDecryptedCredential } from './credentials.js';
+import { DEMO_TEMPLATES } from '../utils/demo.js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const router = Router();
+router.use(requireAuth);
 
-const N8N_URL = process.env.N8N_URL;
-const N8N_API_KEY = process.env.N8N_API_KEY;
+const N8N_CRED_TYPE_MAP = {
+  aws: 'aws',
+  gcp: 'googleApi',
+  azure: 'microsoftAzureOAuth2Api',
+  github: 'githubApi',
+  slack: 'slackApi',
+  openai: 'openAiApi',
+  smtp: 'smtp',
+  http: 'httpBasicAuth',
+};
 
-// 📋 List available templates
-export async function listTemplates(req, res) {
+// ─────────────────────────────────────────────
+// GET /api/templates - List templates
+// ─────────────────────────────────────────────
+router.get('/', async (req, res) => {
+  if (process.env.DEMO_MODE === 'true') {
+    return res.json({ templates: DEMO_TEMPLATES });
+  }
+
   try {
+    const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from('workflow_templates')
-      .select('id, name, description, category, icon, required_credentials, tags')
-      .eq('is_active', true);
+      .select('id, template_id, name, description, category, required_credentials, tags, created_at')
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
-
-    res.json({ templates: data });
-
-  } catch (error) {
-    console.error('Error listing templates:', error);
-    res.status(500).json({ error: error.message });
+    res.json({ templates: data || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-}
+});
 
-// 🚀 Import template and inject credentials
-export async function importTemplate(req, res) {
+// ─────────────────────────────────────────────
+// POST /api/templates/import
+// ─────────────────────────────────────────────
+router.post('/import', async (req, res) => {
+  const { template_id, workflow_name, credential_mappings = {} } = req.body;
+
+  if (!template_id) {
+    return res.status(400).json({ error: 'template_id is required' });
+  }
+
+  // ── Demo mode ──
+  if (process.env.DEMO_MODE === 'true') {
+    const template = DEMO_TEMPLATES.find(
+      t => t.id === template_id || t.template_id === template_id
+    );
+    return res.json({
+      success: true,
+      workflow: {
+        id: `demo-wf-${Date.now()}`,
+        name: workflow_name || template?.name || 'Imported Workflow',
+      },
+    });
+  }
+
+  const userId = req.user.id;
+  const supabase = getSupabaseAdmin();
+
   try {
-    const { template_id, credential_mappings, workflow_name } = req.body;
-    const userId = req.user.id;
+    // ── 1. Fetch template ──
+    // Use two separate queries instead of .or() to avoid Supabase PostgREST syntax issues
+    let template = null;
 
-    // 1. Get template from database
-    const { data: template, error: templateError } = await supabase
+    const { data: byId } = await supabase
       .from('workflow_templates')
       .select('*')
       .eq('id', template_id)
-      .single();
+      .maybeSingle();
 
-    if (templateError) throw templateError;
-
-    // 2. Get user's credentials
-    const credentials = {};
-    for (const [credType, credId] of Object.entries(credential_mappings)) {
-      const { data: cred, error: credError } = await supabase
-        .from('user_credentials')
+    if (byId) {
+      template = byId;
+    } else {
+      const { data: byTemplateId, error: tErr } = await supabase
+        .from('workflow_templates')
         .select('*')
-        .eq('id', credId)
-        .eq('user_id', userId)
-        .single();
+        .eq('template_id', template_id)
+        .maybeSingle();
 
-      if (credError) throw credError;
-
-      const decrypted = decryptCredential(JSON.parse(cred.encrypted_data));
-      credentials[credType] = {
-        id: cred.id,
-        name: cred.credential_name,
-        data: decrypted
-      };
+      if (tErr) throw new Error(`Template lookup failed: ${tErr.message}`);
+      template = byTemplateId;
     }
 
-    // 3. Clone workflow JSON and inject credentials
-    const workflowData = JSON.parse(JSON.stringify(template.workflow_json));
-    workflowData.name = workflow_name || template.name;
-
-    // First create credentials in n8n
-    const n8nCredentialIds = {};
-    for (const [credType, credData] of Object.entries(credentials)) {
-      const n8nCredId = await createN8nCredential(
-        credType,
-        credData.name,
-        credData.data,
-        userId
-      );
-      n8nCredentialIds[credType] = n8nCredId;
+    if (!template) {
+      throw new Error(`Template not found: ${template_id}`);
     }
 
-    // Replace placeholder credentials in workflow
-    workflowData.nodes = workflowData.nodes.map(node => {
-      if (node.credentials) {
-        for (const [credType, credInfo] of Object.entries(node.credentials)) {
-          if (n8nCredentialIds[credType]) {
-            node.credentials[credType] = {
-              id: n8nCredentialIds[credType],
-              name: credentials[credType].name
-            };
+    // ── 2. Decrypt credentials (skip if none mapped) ──
+    const decryptedCreds = {};
+    for (const [credType, credId] of Object.entries(credential_mappings)) {
+      if (!credId) continue;
+      try {
+        decryptedCreds[credType] = await getDecryptedCredential(credId, userId);
+      } catch (err) {
+        console.warn(`Could not decrypt credential ${credType}:`, err.message);
+      }
+    }
+
+    // ── 3. Create credentials in n8n ──
+    const n8nCredIds = {};
+    for (const [credType, credInfo] of Object.entries(decryptedCreds)) {
+      try {
+        const n8nType = N8N_CRED_TYPE_MAP[credType] || credType;
+        const n8nCred = await n8nRequest('/credentials', 'POST', {
+          name: `${credInfo.credential_name}_${Date.now()}`,
+          type: n8nType,
+          data: credInfo.data,
+        });
+        n8nCredIds[credType] = { id: n8nCred.id, name: credInfo.credential_name };
+      } catch (err) {
+        console.warn(`n8n credential creation failed for ${credType}:`, err.message);
+      }
+    }
+
+    // ── 4. Sanitize + clone workflow JSON ──
+    const rawJson = template.template_json || {};
+    const workflowJson = sanitizeWorkflowForImport(rawJson, workflow_name || template.name);
+
+    // Inject credential IDs into nodes
+    if (workflowJson.nodes && Object.keys(n8nCredIds).length > 0) {
+      workflowJson.nodes = workflowJson.nodes.map(node => {
+        if (node.credentials) {
+          for (const credKey of Object.keys(node.credentials)) {
+            const match = Object.keys(n8nCredIds).find(t =>
+              credKey.toLowerCase().includes(t.toLowerCase()) ||
+              t.toLowerCase().includes(credKey.toLowerCase())
+            );
+            if (match) {
+              node.credentials[credKey] = n8nCredIds[match];
+            }
           }
         }
-      }
-      return node;
-    });
-
-    // 4. Create workflow in n8n
-    const n8nResponse = await fetch(`${N8N_URL}/api/v1/workflows`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-N8N-API-KEY': N8N_API_KEY
-      },
-      body: JSON.stringify(workflowData)
-    });
-
-    if (!n8nResponse.ok) {
-      throw new Error('Failed to create workflow in n8n');
+        return node;
+      });
     }
 
-    const n8nWorkflow = await n8nResponse.json();
+    // ── 5. Create workflow in n8n ──
+    const n8nWorkflow = await n8nRequest('/workflows', 'POST', workflowJson);
 
-    // 5. Store in user_workflows table
-    const { data: userWorkflow, error: userWorkflowError } = await supabase
+    if (!n8nWorkflow?.id) {
+      throw new Error('n8n did not return a workflow ID after creation');
+    }
+
+    // ── 6. Save to user_workflows ──
+    const { data: userWorkflow, error: uwErr } = await supabase
       .from('user_workflows')
       .insert({
         user_id: userId,
-        template_id: template_id,
-        n8n_workflow_id: n8nWorkflow.id,
-        name: workflow_name || template.name,
-        is_active: false
+        workflow_id: String(n8nWorkflow.id),
+        workflow_name: workflow_name || template.name,
+        is_active: false,
+        template_id: template.template_id,
+        credentials: n8nCredIds,
+        settings: {},
       })
       .select()
       .single();
 
-    if (userWorkflowError) throw userWorkflowError;
+    if (uwErr) throw new Error(`DB save failed: ${uwErr.message}`);
 
-    // 6. Log audit
-    await supabase.from('audit_logs').insert({
+    // ── 7. Audit log (non-fatal) ──
+    supabase.from('audit_logs').insert({
       user_id: userId,
-      action: 'workflow_imported',
+      action: 'template_imported',
       resource_type: 'workflow',
       resource_id: userWorkflow.id,
-      metadata: { template_id, workflow_name }
-    });
+      metadata: { template_id, workflow_name, n8n_workflow_id: n8nWorkflow.id },
+    }).catch(() => {});
 
     res.json({
       success: true,
       workflow: {
         id: userWorkflow.id,
         n8n_id: n8nWorkflow.id,
-        name: userWorkflow.name
-      }
+        name: userWorkflow.workflow_name,
+      },
     });
 
-  } catch (error) {
-    console.error('Error importing template:', error);
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    console.error('Template import error:', err);
+    res.status(500).json({ error: err.message });
   }
-}
+});
 
-// Helper: Create credential in n8n
-async function createN8nCredential(type, name, data, userId) {
-  const credentialTypeMap = {
-    'aws': 'aws',
-    'gcp': 'googleApi',
-    'azure': 'microsoftAzure'
+// ─────────────────────────────────────────────
+// Strip n8n-internal fields that cause 400 on POST /workflows
+// n8n rejects: id, meta.instanceId, versionId, updatedAt, createdAt, active
+// ─────────────────────────────────────────────
+function sanitizeWorkflowForImport(raw, name) {
+  const wf = JSON.parse(JSON.stringify(raw)); // deep clone
+
+  // Required fields with safe defaults
+  const clean = {
+    name: name || wf.name || 'Imported Workflow',
+    nodes: wf.nodes || [],
+    connections: wf.connections || {},
+    settings: wf.settings || { executionOrder: 'v1' },
+    staticData: wf.staticData || null,
+    tags: wf.tags || [],
   };
 
-  const response = await fetch(`${N8N_URL}/api/v1/credentials`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-N8N-API-KEY': N8N_API_KEY
-    },
-    body: JSON.stringify({
-      name: `${name}_${userId}_${Date.now()}`,
-      type: credentialTypeMap[type],
-      data: data
-    })
+  // Strip node IDs that will conflict (n8n re-assigns them)
+  clean.nodes = clean.nodes.map(node => {
+    const n = { ...node };
+    // Keep: type, name, parameters, credentials, position, typeVersion
+    // Remove: id (n8n will assign new IDs)
+    delete n.id;
+    return n;
   });
 
-  if (!response.ok) {
-    throw new Error('Failed to create credential in n8n');
-  }
-
-  const credential = await response.json();
-  return credential.id;
+  return clean;
 }
+
+export default router;

@@ -1,29 +1,53 @@
-// utils/encryption.js
+// utils/encryption.js - AES-256-GCM credential encryption
 import crypto from 'crypto';
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY; // Must be 32 bytes
 const ALGORITHM = 'aes-256-gcm';
 
-export function encryptCredential(credential) {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
+function getEncryptionKey() {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error('ENCRYPTION_KEY environment variable must be set (32-byte hex string)');
+  }
+  const buf = Buffer.from(key, 'hex');
+  if (buf.length !== 32) {
+    throw new Error(`ENCRYPTION_KEY must be 32 bytes (64 hex chars). Got ${buf.length} bytes.`);
+  }
+  return buf;
+}
 
-  let encrypted = cipher.update(JSON.stringify(credential), 'utf8', 'hex');
+/**
+ * Encrypts a credentials object using AES-256-GCM
+ * Returns { encrypted, iv, authTag } - all hex strings
+ */
+export function encryptCredential(credentialData) {
+  const key = getEncryptionKey();
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+
+  const plaintext = JSON.stringify(credentialData);
+  let encrypted = cipher.update(plaintext, 'utf8', 'hex');
   encrypted += cipher.final('hex');
 
   const authTag = cipher.getAuthTag();
 
   return {
-    encrypted: encrypted,
+    encrypted,
     iv: iv.toString('hex'),
-    authTag: authTag.toString('hex')
+    authTag: authTag.toString('hex'),
   };
 }
 
+/**
+ * Decrypts a credential object
+ * Input: { encrypted, iv, authTag } - all hex strings
+ * Returns the original credential data object
+ */
 export function decryptCredential(encryptedData) {
+  const key = getEncryptionKey();
+
   const decipher = crypto.createDecipheriv(
     ALGORITHM,
-    Buffer.from(ENCRYPTION_KEY, 'hex'),
+    key,
     Buffer.from(encryptedData.iv, 'hex')
   );
 
@@ -33,4 +57,11 @@ export function decryptCredential(encryptedData) {
   decrypted += decipher.final('utf8');
 
   return JSON.parse(decrypted);
+}
+
+/**
+ * Generate a random 32-byte encryption key (for setup scripts)
+ */
+export function generateEncryptionKey() {
+  return crypto.randomBytes(32).toString('hex');
 }

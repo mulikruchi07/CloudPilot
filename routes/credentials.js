@@ -1,88 +1,204 @@
-// routes/credentials.js
-import { createClient } from '@supabase/supabase-js';
+// routes/credentials.js - Secure credential vault with AES-256-GCM
+import { Router } from 'express';
+import { requireAuth } from '../middleware/auth.js';
+import { getSupabaseAdmin } from '../utils/supabase.js';
 import { encryptCredential, decryptCredential } from '../utils/encryption.js';
+import { n8nRequest } from '../utils/n8n.js';
+import { DEMO_CREDENTIALS } from '../utils/demo.js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const router = Router();
+router.use(requireAuth);
 
-// ✅ Add new credential
-export async function addCredential(req, res) {
+// n8n credential type mapping
+const N8N_CRED_TYPE_MAP = {
+  aws: 'aws',
+  gcp: 'googleApi',
+  azure: 'microsoftAzure',
+  github: 'githubApi',
+  slack: 'slackApi',
+  openai: 'openAiApi',
+};
+
+// ─────────────────────────────────────────────
+// GET /api/credentials - List (no secrets)
+// ─────────────────────────────────────────────
+router.get('/', async (req, res) => {
+  if (process.env.DEMO_MODE === 'true') {
+    return res.json({ credentials: DEMO_CREDENTIALS });
+  }
+
   try {
-    const { credential_type, credential_name, credentials } = req.body;
-    const userId = req.user.id; // From auth middleware
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('user_credentials')
+      .select('id, credential_type, credential_name, is_valid, last_validated_at, created_at')
+      .eq('user_id', req.user.id)
+      .eq('is_valid', true)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ credentials: data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// POST /api/credentials - Add credential
+// ─────────────────────────────────────────────
+router.post('/', async (req, res) => {
+  const { credential_type, credential_name, credentials } = req.body;
+
+  if (!credential_type || !credential_name || !credentials) {
+    return res.status(400).json({ error: 'credential_type, credential_name, and credentials are required' });
+  }
+
+  if (process.env.DEMO_MODE === 'true') {
+    return res.json({
+      success: true,
+      credential: {
+        id: `cred-${Date.now()}`,
+        credential_type,
+        credential_name,
+        is_valid: true,
+        created_at: new Date().toISOString(),
+      },
+    });
+  }
+
+  try {
+    const supabase = getSupabaseAdmin();
+    const userId = req.user.id;
 
     // Encrypt the credentials
     const encrypted = encryptCredential(credentials);
 
+    // Store in Supabase
     const { data, error } = await supabase
       .from('user_credentials')
       .insert({
         user_id: userId,
         credential_type,
         credential_name,
-        encrypted_data: JSON.stringify(encrypted)
+        encrypted_data: JSON.stringify(encrypted),
+        is_valid: true,
+        last_validated_at: new Date().toISOString(),
       })
-      .select()
+      .select('id, credential_type, credential_name, is_valid, created_at')
       .single();
 
     if (error) throw error;
 
-    // Also create credential in n8n
-    await createN8nCredential(credential_type, credential_name, credentials, userId);
+    // Also create in n8n (best-effort, non-fatal)
+    let n8nCredentialId = null;
+    try {
+      const n8nType = N8N_CRED_TYPE_MAP[credential_type] || credential_type;
+      const n8nCred = await n8nRequest('/credentials', 'POST', {
+        name: `${credential_name}_${userId.slice(0, 8)}_${Date.now()}`,
+        type: n8nType,
+        data: credentials,
+      });
+      n8nCredentialId = n8nCred?.id;
 
-    res.json({ success: true, credential: {
-      id: data.id,
-      name: credential_name,
-      type: credential_type
-    }});
+      // Store n8n credential ID if we have a column for it
+      if (n8nCredentialId) {
+        await supabase
+          .from('user_credentials')
+          .update({ n8n_credential_id: n8nCredentialId })
+          .eq('id', data.id)
+          .throwOnError()
+          .catch(() => {}); // Column may not exist yet
+      }
+    } catch (n8nErr) {
+      console.warn('Could not create credential in n8n (non-fatal):', n8nErr.message);
+    }
 
-  } catch (error) {
-    console.error('Error adding credential:', error);
-    res.status(500).json({ error: error.message });
+    // Audit log
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: userId,
+        action: 'credential_added',
+        resource_type: 'credential',
+        resource_id: data.id,
+        metadata: { credential_type, credential_name },
+      });
+    } catch (_) {}
+
+    res.json({
+      success: true,
+      credential: data,
+      n8n_synced: !!n8nCredentialId,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-}
+});
 
-// 📋 List user credentials (without secrets)
-export async function listCredentials(req, res) {
+// ─────────────────────────────────────────────
+// DELETE /api/credentials/:id - Delete credential
+// ─────────────────────────────────────────────
+router.delete('/:id', async (req, res) => {
+  if (process.env.DEMO_MODE === 'true') {
+    return res.json({ success: true });
+  }
+
   try {
+    const supabase = getSupabaseAdmin();
     const userId = req.user.id;
 
-    const { data, error } = await supabase
-      .from('user_credentials')
-      .select('id, credential_type, credential_name, is_active, last_used_at, created_at')
-      .eq('user_id', userId)
-      .eq('is_active', true);
-
-    if (error) throw error;
-
-    res.json({ credentials: data });
-
-  } catch (error) {
-    console.error('Error listing credentials:', error);
-    res.status(500).json({ error: error.message });
-  }
-}
-
-// 🗑️ Delete credential
-export async function deleteCredential(req, res) {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
-
+    // Soft-delete: mark is_valid = false
     const { error } = await supabase
       .from('user_credentials')
-      .update({ is_active: false })
-      .eq('id', id)
+      .update({ is_valid: false })
+      .eq('id', req.params.id)
       .eq('user_id', userId);
 
     if (error) throw error;
 
-    res.json({ success: true });
+    // Audit
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: userId,
+        action: 'credential_deleted',
+        resource_type: 'credential',
+        resource_id: req.params.id,
+        metadata: {},
+      });
+    } catch (_) {}
 
-  } catch (error) {
-    console.error('Error deleting credential:', error);
-    res.status(500).json({ error: error.message });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
+});
+
+// ─────────────────────────────────────────────
+// Internal helper - get decrypted credential data
+// (used by template import pipeline)
+// ─────────────────────────────────────────────
+export async function getDecryptedCredential(credentialId, userId) {
+  const supabase = getSupabaseAdmin();
+
+  const { data, error } = await supabase
+    .from('user_credentials')
+    .select('*')
+    .eq('id', credentialId)
+    .eq('user_id', userId)
+    .eq('is_valid', true)
+    .single();
+
+  if (error) throw new Error(`Credential not found: ${error.message}`);
+
+  const parsed = JSON.parse(data.encrypted_data);
+  const decrypted = decryptCredential(parsed);
+
+  return {
+    id: data.id,
+    credential_type: data.credential_type,
+    credential_name: data.credential_name,
+    data: decrypted,
+  };
 }
+
+export default router;
