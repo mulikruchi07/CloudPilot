@@ -473,16 +473,6 @@
     transition: transform 0.3s;
   }
 
-  .wf-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-lg);
-    border-color: rgba(99, 102, 241, 0.3);
-  }
-
-  .wf-card:hover::before {
-    transform: scaleX(1);
-  }
-
   .wf-header {
     display: flex;
     justify-content: space-between;

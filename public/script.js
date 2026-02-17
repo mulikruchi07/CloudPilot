@@ -103,10 +103,10 @@ function switchView(viewName) {
     // Update page header
     const headers = {
         'dashboard': { title: 'Workflow Dashboard', subtitle: 'Manage and monitor your automation workflows' },
-        'templates': { title: '📦 Templates', subtitle: 'Browse and import pre-built automation templates' },
-        'credentials': { title: '🔐 Credentials', subtitle: 'Manage your cloud credentials securely' },
+        'templates': { title: 'Templates', subtitle: 'Browse and import pre-built automation templates' },
+        'credentials': { title: 'Credentials', subtitle: 'Manage your cloud credentials securely' },
         'workflows': { title: 'My Workflows', subtitle: 'All your automation workflows in one place' },
-        'settings': { title: '⚙️ Settings', subtitle: 'Manage your account and preferences' }
+        'settings': { title: 'Settings', subtitle: 'Manage your account and preferences' }
     };
 
     const header = headers[viewName] || headers['dashboard'];
