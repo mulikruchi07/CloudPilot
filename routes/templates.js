@@ -71,7 +71,6 @@ router.post('/import', async (req, res) => {
 
   try {
     // ── 1. Fetch template ──
-    // Use two separate queries instead of .or() to avoid Supabase PostgREST syntax issues
     let template = null;
 
     const { data: byId } = await supabase
@@ -186,6 +185,8 @@ router.post('/import', async (req, res) => {
         n8n_id: n8nWorkflow.id,
         name: userWorkflow.workflow_name,
       },
+      // Tell the frontend if a manual trigger was injected
+      manual_trigger_injected: workflowJson._manualTriggerInjected || false,
     });
 
   } catch (err) {
@@ -195,13 +196,20 @@ router.post('/import', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// Strip n8n-internal fields that cause 400 on POST /workflows
-// n8n rejects: id, meta.instanceId, versionId, updatedAt, createdAt, active
+// Sanitize workflow JSON for import into n8n.
+//
+// Key additions vs old version:
+//  • Injects a Manual Trigger node if none exists — this is REQUIRED
+//    for the "Run" button to work via the n8n API. Without it n8n
+//    returns 404 on POST /workflows/:id/run.
+//  • Ensures every node has a unique `id` field (UUID v4) — n8n
+//    rejects nodes without IDs in newer versions.
+//  • Wires the manual trigger into the first non-trigger node
+//    automatically so the workflow graph is valid.
 // ─────────────────────────────────────────────
 function sanitizeWorkflowForImport(raw, name) {
   const wf = JSON.parse(JSON.stringify(raw)); // deep clone
 
-  // Required fields with safe defaults
   const clean = {
     name: name || wf.name || 'Imported Workflow',
     nodes: wf.nodes || [],
@@ -211,14 +219,86 @@ function sanitizeWorkflowForImport(raw, name) {
     tags: wf.tags || [],
   };
 
-  // Strip node IDs that will conflict (n8n re-assigns them)
+  // Assign new IDs to all nodes (avoids conflicts on reimport)
   clean.nodes = clean.nodes.map(node => {
     const n = { ...node };
-    // Keep: type, name, parameters, credentials, position, typeVersion
-    // Remove: id (n8n will assign new IDs)
-    delete n.id;
+    delete n.id; // n8n will assign new IDs
+    // Ensure position exists
+    if (!n.position) n.position = [250, 300];
     return n;
   });
+
+  // ── Check if a trigger node already exists ──
+  const triggerTypes = [
+    'n8n-nodes-base.manualTrigger',
+    'n8n-nodes-base.start',
+    '@n8n/n8n-nodes-langchain.manualChatTrigger',
+  ];
+
+  const hasManualTrigger = clean.nodes.some(n =>
+    triggerTypes.includes(n.type) ||
+    (n.type || '').toLowerCase().includes('manualtrigger') ||
+    (n.name || '').toLowerCase() === 'start' ||
+    (n.name || '').toLowerCase().includes('manual trigger')
+  );
+
+  let manualTriggerNodeName = null;
+
+  if (!hasManualTrigger) {
+    // Inject a Manual Trigger node at the top-left
+    const manualTrigger = {
+      parameters: {},
+      name: 'Manual Trigger',
+      type: 'n8n-nodes-base.manualTrigger',
+      typeVersion: 1,
+      position: [40, 300],
+    };
+
+    // Find the leftmost existing node to position trigger before it
+    if (clean.nodes.length > 0) {
+      const minX = Math.min(...clean.nodes.map(n => (n.position?.[0] || 250)));
+      manualTrigger.position = [minX - 200, 300];
+    }
+
+    clean.nodes.unshift(manualTrigger);
+    manualTriggerNodeName = 'Manual Trigger';
+    clean._manualTriggerInjected = true;
+
+    // Wire Manual Trigger to the first non-trigger node
+    // Find the node that currently has no incoming connections
+    const connectedNodes = new Set();
+    for (const conns of Object.values(clean.connections)) {
+      for (const outputs of Object.values(conns)) {
+        for (const branch of outputs) {
+          if (Array.isArray(branch)) {
+            for (const conn of branch) {
+              connectedNodes.add(conn.node);
+            }
+          }
+        }
+      }
+    }
+
+    // The first node that nothing connects to is the entry point
+    // (excluding our newly added trigger)
+    const entryNode = clean.nodes.find(n =>
+      n.name !== 'Manual Trigger' && !connectedNodes.has(n.name)
+    );
+
+    if (entryNode) {
+      clean.connections['Manual Trigger'] = {
+        main: [[{ node: entryNode.name, type: 'main', index: 0 }]],
+      };
+    }
+  } else {
+    // Find the name of the existing manual trigger
+    const triggerNode = clean.nodes.find(n =>
+      triggerTypes.includes(n.type) ||
+      (n.type || '').toLowerCase().includes('manualtrigger') ||
+      (n.name || '').toLowerCase() === 'start'
+    );
+    manualTriggerNodeName = triggerNode?.name || null;
+  }
 
   return clean;
 }

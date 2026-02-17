@@ -22,8 +22,16 @@
     </div>
   </div>
 
+  <!-- Mobile hamburger -->
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">
+    <i class="fas fa-bars"></i>
+  </button>
+
+  <!-- Sidebar overlay (mobile backdrop) -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
   <!-- Sidebar -->
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div class="logo-box">
       <div class="logo-icon"><i class="fas fa-microchip"></i></div>
       <div class="logo-text">CloudPilot</div>
@@ -137,6 +145,36 @@
 
   <!-- Toast -->
   <div id="toastNotification" class="toast"></div>
+
+  <!-- Mobile menu JS (inline, runs before module) -->
+  <script>
+    const menuToggle = document.getElementById('menuToggle');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+
+    function openSidebar() {
+      sidebar.classList.add('open');
+      overlay.classList.add('active');
+      menuToggle.innerHTML = '<i class="fas fa-times"></i>';
+    }
+    function closeSidebar() {
+      sidebar.classList.remove('open');
+      overlay.classList.remove('active');
+      menuToggle.innerHTML = '<i class="fas fa-bars"></i>';
+    }
+
+    menuToggle.addEventListener('click', () => {
+      sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+    });
+    overlay.addEventListener('click', closeSidebar);
+
+    // Close sidebar on nav click (mobile)
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', () => {
+        if (window.innerWidth <= 768) closeSidebar();
+      });
+    });
+  </script>
 
   <!-- Entry point -->
   <script type="module" src="./script.js"></script>

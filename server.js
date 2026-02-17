@@ -57,6 +57,77 @@ if (!DEMO_MODE) {
 }
 
 // ─────────────────────────────────────────────
+// ADD THIS ROUTE to server.js, before the other routes
+// Visit http://localhost:4000/api/n8n-debug in your browser
+// to see exactly what's wrong with your n8n connection
+// ─────────────────────────────────────────────
+
+app.get('/api/n8n-debug', async (req, res) => {
+  const n8nUrl = (process.env.N8N_URL || 'http://localhost:5678').replace(/\/$/, '');
+  const apiKey = process.env.N8N_API_KEY || '';
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+  if (apiKey) headers['X-N8N-API-KEY'] = apiKey;
+
+  const results = {
+    config: {
+      n8n_url: n8nUrl,
+      api_key_set: !!apiKey,
+      api_key_preview: apiKey ? `${apiKey.slice(0, 8)}…` : '⚠ NOT SET — this causes 401/403',
+    },
+    endpoint_tests: [],
+  };
+
+  const paths = [
+    '/api/v1/workflows?limit=1',
+    '/rest/workflows?limit=1',
+    '/api/v1/workflows',
+    '/healthz',
+  ];
+
+  for (const path of paths) {
+    const url = `${n8nUrl}${path}`;
+    try {
+      const r = await fetch(url, { method: 'GET', headers, signal: AbortSignal.timeout(4000) });
+      let body = '';
+      try { body = await r.text(); } catch (_) {}
+      let parsed = null;
+      try { parsed = JSON.parse(body); } catch (_) {}
+
+      results.endpoint_tests.push({
+        url,
+        status: r.status,
+        ok: r.ok,
+        response_preview: body.slice(0, 300),
+      });
+    } catch (err) {
+      results.endpoint_tests.push({ url, error: err.message, ok: false });
+    }
+  }
+
+  // Interpret results
+  const interpretations = [];
+  const anyOk = results.endpoint_tests.some(t => t.ok);
+  const any401 = results.endpoint_tests.some(t => t.status === 401 || t.status === 403);
+  const anyConnRefused = results.endpoint_tests.some(t => t.error?.includes('ECONNREFUSED') || t.error?.includes('ENOTFOUND'));
+
+  if (anyConnRefused) {
+    interpretations.push('❌ n8n is NOT running or N8N_URL is wrong. Check that n8n is started and the URL is correct.');
+  } else if (any401 && !anyOk) {
+    interpretations.push('❌ n8n is reachable but your API key is wrong or missing. Set N8N_API_KEY in your .env file.');
+  } else if (anyOk) {
+    interpretations.push('✅ n8n connection is working!');
+  }
+
+  results.interpretations = interpretations;
+
+  res.json(results);
+});
+
+// ─────────────────────────────────────────────
 // PUBLIC ROUTES (no auth)
 // ─────────────────────────────────────────────
 

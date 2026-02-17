@@ -257,7 +257,7 @@ function getNodeIcon(node) {
   if (name.includes('schedule') || name.includes('cron')) return 'clock';
   if (name.includes('filter') || name.includes('if')) return 'filter';
   if (name.includes('code') || name.includes('function')) return 'code';
-  if (name.includes('start') || name.includes('trigger') || type === 'trigger') return 'play-circle';
+  if (name.includes('start') || name.includes('trigger') || name.includes('manual') || type === 'trigger') return 'play-circle';
   if (name.includes('set') || name.includes('assign')) return 'pen';
   if (name.includes('merge') || name.includes('join')) return 'code-branch';
   if (name.includes('split') || name.includes('loop')) return 'random';
@@ -338,7 +338,46 @@ export async function runWithLivePanel(workflowId, workflowName, cardEl) {
     await delay(300);
     addStep('Triggering workflow execution…', 'running');
     await delay(200);
-    const result = await api.runWorkflow(workflowId);
+
+    let result;
+    try {
+      result = await api.runWorkflow(workflowId);
+    } catch (runErr) {
+      // Parse hint from error response if available
+      let friendlyMsg = runErr.message;
+      let hint = '';
+
+      // Try to extract hint from structured error
+      if (runErr.message && runErr.message.includes('Manual Trigger')) {
+        hint = runErr.message;
+        friendlyMsg = 'Cannot run via API';
+      } else if (runErr.message && runErr.message.includes('trigger')) {
+        hint = runErr.message;
+        friendlyMsg = 'Trigger configuration issue';
+      }
+
+      updateLastStep('error', friendlyMsg);
+
+      footerEl.innerHTML = `
+        <div class="live-result-bar live-result--err">
+          <div style="flex:1">
+            <div style="color:var(--accent);font-weight:700;margin-bottom:4px">
+              <i class="fas fa-exclamation-triangle"></i> Execution failed
+            </div>
+            ${hint ? `<div style="font-size:11px;color:#8a9bc0;line-height:1.5">${escapeHtml(hint)}</div>` : ''}
+            <div style="font-size:11px;color:#5a6f8a;margin-top:6px">
+              <i class="fas fa-info-circle"></i>
+              Open this workflow in n8n and ensure it has a <strong style="color:#c8d3eb">Manual Trigger</strong> node.
+            </div>
+          </div>
+          <a href="${escapeHtml(getN8nWorkflowUrl(workflowId))}" target="_blank"
+             class="wf-btn secondary" style="font-size:11px;padding:5px 10px;text-decoration:none;white-space:nowrap">
+            <i class="fas fa-external-link-alt"></i> Open in n8n
+          </a>
+        </div>`;
+      return;
+    }
+
     updateLastStep('success', `Execution ID: ${result?.execution?.id || 'started'}`);
     await delay(300);
 
@@ -381,6 +420,11 @@ export async function runWithLivePanel(workflowId, workflowName, cardEl) {
       <span style="color:var(--accent)"><i class="fas fa-times-circle"></i> ${escapeHtml(err.message)}</span>
     </div>`;
   }
+}
+
+function getN8nWorkflowUrl(workflowId) {
+  // Try to guess the n8n URL — falls back to localhost
+  return `http://localhost:5678/workflow/${workflowId}`;
 }
 
 async function pollExecution(execId) {

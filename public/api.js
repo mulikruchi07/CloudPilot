@@ -1,13 +1,8 @@
 // public/api.js - Centralized API client
 let _token = null;
 
-export function setToken(token) {
-  _token = token;
-}
-
-export function getToken() {
-  return _token;
-}
+export function setToken(token) { _token = token; }
+export function getToken() { return _token; }
 
 async function request(url, method = 'GET', body = null) {
   const headers = { 'Content-Type': 'application/json' };
@@ -16,19 +11,33 @@ async function request(url, method = 'GET', body = null) {
   const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
 
-  const res = await fetch(url, opts);
+  let res;
+  try {
+    res = await fetch(url, opts);
+  } catch (networkErr) {
+    throw new Error(`Network error: cannot reach server — ${networkErr.message}`);
+  }
 
   if (res.status === 401) {
     window.location.href = '/login.html';
     throw new Error('Unauthorized');
   }
 
-  const text = await res.text();
+  // Always try to parse the body for error details
   let data;
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  const text = await res.text().catch(() => '');
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { raw: text };
+  }
 
   if (!res.ok) {
-    throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+    // Build the most useful error message possible
+    // Priority: data.error > data.message > data.hint > raw text > HTTP status
+    const msg = data?.error || data?.message || data?.raw || `HTTP ${res.status}`;
+    const hint = data?.hint ? ` — ${data.hint}` : '';
+    throw new Error(`${msg}${hint}`);
   }
 
   return data;
@@ -36,28 +45,28 @@ async function request(url, method = 'GET', body = null) {
 
 export const api = {
   // Workflows
-  getWorkflows: () => request('/api/workflows'),
-  getWorkflow: (id) => request(`/api/workflows/${id}`),
-  runWorkflow: (id) => request(`/api/workflows/${id}/run`, 'POST'),
-  toggleWorkflow: (id, active) => request(`/api/workflows/${id}/toggle`, 'POST', { active }),
-  deleteWorkflow: (id) => request(`/api/workflows/${id}`, 'DELETE'),
-  getWorkflowHistory: (id) => request(`/api/workflows/${id}/history`),
+  getWorkflows:       ()         => request('/api/workflows'),
+  getWorkflow:        (id)       => request(`/api/workflows/${id}`),
+  runWorkflow:        (id)       => request(`/api/workflows/${id}/run`, 'POST'),
+  toggleWorkflow:     (id, act)  => request(`/api/workflows/${id}/toggle`, 'POST', { active: act }),
+  deleteWorkflow:     (id)       => request(`/api/workflows/${id}`, 'DELETE'),
+  getWorkflowHistory: (id)       => request(`/api/workflows/${id}/history`),
 
   // Credentials
-  getCredentials: () => request('/api/credentials'),
-  addCredential: (data) => request('/api/credentials', 'POST', data),
-  deleteCredential: (id) => request(`/api/credentials/${id}`, 'DELETE'),
+  getCredentials:   ()     => request('/api/credentials'),
+  addCredential:    (data) => request('/api/credentials', 'POST', data),
+  deleteCredential: (id)   => request(`/api/credentials/${id}`, 'DELETE'),
 
   // Templates
-  getTemplates: () => request('/api/templates'),
-  importTemplate: (data) => request('/api/templates/import', 'POST', data),
+  getTemplates:    ()     => request('/api/templates'),
+  importTemplate:  (data) => request('/api/templates/import', 'POST', data),
 
   // Executions
-  getExecutions: () => request('/api/executions'),
-  getExecution: (id) => request(`/api/executions/${id}`),
-  getTimeline: (id) => request(`/api/executions/${id}/timeline`),
+  getExecutions:  ()   => request('/api/executions'),
+  getExecution:   (id) => request(`/api/executions/${id}`),
+  getTimeline:    (id) => request(`/api/executions/${id}/timeline`),
 
-  // Health
+  // Health / Config
   health: () => request('/api/health'),
   config: () => request('/api/config'),
 };
@@ -80,9 +89,8 @@ export function formatDate(dateStr) {
 
 export function formatDateTime(dateStr) {
   if (!dateStr) return '—';
-  try {
-    return new Date(dateStr).toLocaleString();
-  } catch { return dateStr; }
+  try { return new Date(dateStr).toLocaleString(); }
+  catch { return dateStr; }
 }
 
 export function formatDuration(ms) {

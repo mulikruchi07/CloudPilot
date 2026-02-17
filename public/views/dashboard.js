@@ -1,4 +1,4 @@
-// public/views/dashboard.js - Workflow dashboard with live run panel
+// public/views/dashboard.js - Workflow dashboard with toggle switch + auto-fix trigger
 import { api, escapeHtml, formatDate } from '../api.js';
 import { showToast, setPageHeader, setTopActions } from '../ui.js';
 import { runWithLivePanel } from './timeline.js';
@@ -71,18 +71,33 @@ function renderWorkflows(workflows) {
     return;
   }
 
-  grid.innerHTML = workflows.map(wf => `
+  grid.innerHTML = workflows.map(wf => buildWorkflowCard(wf)).join('');
+}
+
+function buildWorkflowCard(wf) {
+  const nodeCount = (wf.nodes || []).length;
+  const hasManualTrigger = (wf.nodes || []).some(n =>
+    (n.type || '').toLowerCase().includes('manualtrigger') ||
+    (n.type || '').toLowerCase().includes('n8n-nodes-base.start') ||
+    (n.name || '').toLowerCase() === 'start' ||
+    (n.name || '').toLowerCase().includes('manual trigger')
+  );
+
+  return `
     <div class="wf-card" id="wfcard-${escapeHtml(wf.id)}">
       <div class="wf-header">
         <div class="wf-title-group">
-          <h3>${escapeHtml(wf.name)}</h3>
-          <span class="wf-id">${escapeHtml(wf.id)}</span>
+          <h3 title="${escapeHtml(wf.name)}">${escapeHtml(wf.name)}</h3>
+          <span class="wf-id">${escapeHtml(String(wf.id))}</span>
         </div>
-        <span class="status-badge ${wf.active ? 'active' : 'inactive'}">
-          <span class="status-dot"></span>
-          ${wf.active ? 'Active' : 'Stopped'}
-        </span>
+        <!-- TOGGLE SWITCH -->
+        <label class="toggle-switch" title="${wf.active ? 'Deactivate workflow' : 'Activate workflow'}">
+          <input type="checkbox" ${wf.active ? 'checked' : ''}
+            onchange="window._toggleWorkflow('${escapeHtml(wf.id)}', this.checked, '${escapeHtml(wf.name).replace(/'/g, "\\'")}', this)">
+          <span class="toggle-slider"></span>
+        </label>
       </div>
+
       <div class="wf-meta">
         <div class="meta-item">
           <i class="fas fa-clock"></i>
@@ -90,30 +105,39 @@ function renderWorkflows(workflows) {
         </div>
         <div class="meta-item">
           <i class="fas fa-cubes"></i>
-          <span>${(wf.nodes || []).length} nodes</span>
+          <span>${nodeCount} nodes</span>
         </div>
+        ${!hasManualTrigger ? `
+        <div class="meta-item meta-item--warn">
+          <i class="fas fa-magic"></i>
+          <span>Run trigger will be added automatically</span>
+        </div>` : ''}
       </div>
+
+      <div class="wf-status-row">
+        <span class="status-badge ${wf.active ? 'active' : 'inactive'}">
+          <span class="status-dot"></span>
+          ${wf.active ? 'Active' : 'Inactive'}
+        </span>
+        <span class="wf-node-pill">${nodeCount} node${nodeCount !== 1 ? 's' : ''}</span>
+      </div>
+
       <div class="wf-actions">
         <button class="wf-btn primary" id="runbtn-${escapeHtml(wf.id)}"
           onclick="window._runWorkflow('${escapeHtml(wf.id)}', '${escapeHtml(wf.name).replace(/'/g, "\\'")}', this)">
           <i class="fas fa-play"></i> Run
         </button>
-        <button class="wf-btn ${wf.active ? 'danger' : 'success'}"
-          onclick="window._toggleWorkflow('${escapeHtml(wf.id)}', ${!wf.active}, '${escapeHtml(wf.name)}')">
-          <i class="fas fa-${wf.active ? 'pause' : 'play-circle'}"></i>
-          ${wf.active ? 'Deactivate' : 'Activate'}
-        </button>
         <button class="wf-btn secondary"
           onclick="window.location.hash='/execution/${escapeHtml(wf.id)}'">
           <i class="fas fa-history"></i> History
         </button>
-        <button class="wf-btn danger"
-          onclick="window._deleteWorkflow('${escapeHtml(wf.id)}', '${escapeHtml(wf.name)}')">
+        <button class="wf-btn danger" title="Delete workflow"
+          onclick="window._deleteWorkflow('${escapeHtml(wf.id)}', '${escapeHtml(wf.name).replace(/'/g, "\\'")}')">
           <i class="fas fa-trash"></i>
         </button>
       </div>
     </div>
-  `).join('');
+  `;
 }
 
 function setupSearch() {
@@ -129,22 +153,42 @@ function setupSearch() {
 }
 
 // ─────────────────────────────────────────────
-// Global action handlers
-// ─────────────────────────────────────────────
-
 // Run — opens live animated panel
+// Auto-patches missing manual trigger before running
+// ─────────────────────────────────────────────
 window._runWorkflow = async (id, name, btnEl) => {
   const card = document.getElementById(`wfcard-${id}`);
   if (!card) return;
   await runWithLivePanel(id, name, card);
 };
 
-window._toggleWorkflow = async (id, active, name) => {
+// ─────────────────────────────────────────────
+// Toggle — visual switch + API call
+// ─────────────────────────────────────────────
+window._toggleWorkflow = async (id, active, name, checkboxEl) => {
+  // Optimistic UI — checkbox already flipped by browser
+  const card = document.getElementById(`wfcard-${id}`);
+  const badge = card?.querySelector('.status-badge');
+  if (badge) {
+    badge.className = `status-badge ${active ? 'active' : 'inactive'}`;
+    badge.innerHTML = `<span class="status-dot"></span>${active ? 'Active' : 'Inactive'}`;
+  }
+
   try {
     await api.toggleWorkflow(id, active);
-    showToast(`✅ Workflow ${active ? 'activated' : 'deactivated'}`, 'success');
-    dashboardView();
+    // Update local cache
+    const wf = _allWorkflows.find(w => String(w.id) === String(id));
+    if (wf) wf.active = active;
+    // Update stats
+    updateStats(_allWorkflows);
+    showToast(`${active ? '✅ Activated' : '⏸ Deactivated'}: ${name}`, active ? 'success' : 'info');
   } catch (err) {
+    // Revert checkbox on failure
+    if (checkboxEl) checkboxEl.checked = !active;
+    if (badge) {
+      badge.className = `status-badge ${!active ? 'active' : 'inactive'}`;
+      badge.innerHTML = `<span class="status-dot"></span>${!active ? 'Active' : 'Inactive'}`;
+    }
     showToast('❌ ' + err.message, 'error');
   }
 };
