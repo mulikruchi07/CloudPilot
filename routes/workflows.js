@@ -111,21 +111,21 @@ router.post('/:id/toggle', async (req, res) => {
     console.log(`   ↳ /${action} failed: ${err.message}`);
   }
 
-  // Strategy 2: PATCH { active } — works on older n8n REST API
+    // Strategy 2: PATCH/PUT { active } fallback for versions that do not allow PATCH
   try {
-    // n8n requires the FULL workflow object when PATCHing
+    // n8n requires the FULL workflow object when updating
     const existing = await n8nRequest(`/workflows/${workflowId}`);
     // Build minimal valid patch body
     const patchBody = buildPatchBody(existing, { active });
-    const data = await n8nRequest(`/workflows/${workflowId}`, 'PATCH', patchBody);
-    console.log(`✅ Toggle via PATCH active=${active}`);
+    const { data, method } = await updateWorkflowWithFallback(workflowId, patchBody);
+    console.log(`✅ Toggle via ${method} active=${active}`);
     await syncToggleToSupabase(workflowId, active, req.user.id);
     return res.json({ success: true, active, data });
   } catch (err) {
-    console.error(`   ↳ PATCH failed: ${err.message}`);
+    console.error(`   ↳ update failed: ${err.message}`);
     return res.status(502).json({
       error: err.message,
-      hint: 'Check that N8N_API_KEY is correct and n8n is reachable',
+      hint: 'Check that N8N_API_KEY is correct and n8n is reachable. Some n8n deployments disable PATCH and require PUT.',
     });
   }
 });
@@ -323,7 +323,8 @@ function hasManualTrigger(nodes) {
  * n8n requires the full workflow object — partial updates cause 400/500.
  * Strip fields n8n rejects on write (id, createdAt, updatedAt, versionId).
  */
-function buildPatchBody(existing, overrides = {}) {
+function buildPatchBody(existing, overrides = {}, options = {}) {
+  const { includeActive = true } = options;
   const body = {
     name: existing.name,
     nodes: existing.nodes || [],
@@ -334,6 +335,12 @@ function buildPatchBody(existing, overrides = {}) {
     active: existing.active,
     ...overrides,
   };
+
+  if (includeActive && !Object.prototype.hasOwnProperty.call(body, 'active')) {
+    body.active = existing.active;
+  }
+
+  if (!includeActive) delete body.active;
   return body;
 }
 
@@ -387,7 +394,7 @@ async function patchInjectManualTrigger(workflowId, wf) {
     };
   }
 
-  const patchBody = buildPatchBody(wf, { nodes: newNodes, connections, active: false });
+  const patchBody = buildPatchBody(wf, { nodes: newNodes, connections, includeactive: false });
 
   // Try deactivate first (some n8n versions need it)
   if (wasActive) {
@@ -399,8 +406,7 @@ async function patchInjectManualTrigger(workflowId, wf) {
   }
 
   // PATCH the workflow
-  const updated = await n8nRequest(`/workflows/${workflowId}`, 'PATCH', patchBody);
-
+  const { data: updated } = await updateWorkflowWithFallback(workflowId, patchBody);
   // Re-activate if it was active
   if (wasActive) {
     try {
@@ -419,6 +425,28 @@ async function syncToggleToSupabase(workflowId, active, userId) {
       .eq('workflow_id', String(workflowId))
       .eq('user_id', userId);
   } catch (_) {}
+}
+async function updateWorkflowWithFallback(workflowId, body) {
+  try {
+    const data = await n8nRequest(`/workflows/${workflowId}`, 'PATCH', body);
+    return { data, method: 'PATCH' };
+  } catch (patchErr) {
+    if (!/method\s+not\s+allowed|405/i.test(patchErr.message || '')) throw patchErr;
+  }
+
+  try {
+    const data = await n8nRequest(`/workflows/${workflowId}`, 'PUT', body);
+    return { data, method: 'PUT' };
+  } catch (putErr) {
+    const msg = putErr.message || '';
+    if (!/request\/body\/active is read-only/i.test(msg)) {
+      throw putErr;
+    }
+
+    const { active: _ignore, ...bodyWithoutActive } = body;
+    const data = await n8nRequest(`/workflows/${workflowId}`, 'PUT', bodyWithoutActive);
+    return { data, method: 'PUT (without active)' };
+  }
 }
 
 export default router;
