@@ -1,4 +1,4 @@
-// public/views/dashboard.js - Workflow dashboard with toggle switch + auto-fix trigger
+// public/views/dashboard.js - Workflow dashboard with toggle switch
 import { api, escapeHtml, formatDate } from '../api.js';
 import { showToast, setPageHeader, setTopActions } from '../ui.js';
 import { runWithLivePanel } from './timeline.js';
@@ -74,33 +74,8 @@ function renderWorkflows(workflows) {
   grid.innerHTML = workflows.map(wf => buildWorkflowCard(wf)).join('');
 }
 
-// Detects any kind of manual/execute trigger node n8n might use
-function workflowHasRunTrigger(nodes) {
-  return (nodes || []).some(n => {
-    const type = (n.type || '').toLowerCase();
-    const name = (n.name || '').toLowerCase();
-    return (
-      type.includes('manualtrigger') ||
-      type.includes('n8n-nodes-base.start') ||
-      type === 'n8n-nodes-base.manualTrigger' ||
-      name === 'start' ||
-      name === 'manual trigger' ||
-      name.includes('execute workflow') ||   // "When clicking 'Execute workflow'"
-      name.includes('manual')
-    );
-  });
-}
-
 function buildWorkflowCard(wf) {
   const nodeCount = (wf.nodes || []).length;
-  const hasRunTrigger = workflowHasRunTrigger(wf.nodes);
-  // Detect if this workflow uses a webhook-based trigger instead
-  const hasWebhookTrigger = (wf.nodes || []).some(n =>
-    (n.type || '').toLowerCase().includes('webhook') ||
-    (n.type || '').toLowerCase().includes('emailtrigger') ||
-    (n.type || '').toLowerCase().includes('gmail') ||
-    (n.name || '').toLowerCase().includes('trigger')
-  );
 
   return `
     <div class="wf-card" id="wfcard-${escapeHtml(wf.id)}">
@@ -126,16 +101,6 @@ function buildWorkflowCard(wf) {
           <i class="fas fa-cubes"></i>
           <span>${nodeCount} nodes</span>
         </div>
-        ${hasWebhookTrigger && !hasRunTrigger ? `
-        <div class="meta-item meta-item--info">
-          <i class="fas fa-bolt"></i>
-          <span>Webhook-triggered workflow</span>
-        </div>` : ''}
-        ${!hasRunTrigger && !hasWebhookTrigger ? `
-        <div class="meta-item meta-item--warn">
-          <i class="fas fa-magic"></i>
-          <span>Run trigger will be added automatically</span>
-        </div>` : ''}
       </div>
 
       <div class="wf-status-row">
@@ -182,9 +147,7 @@ function setupSearch() {
 window._runWorkflow = async (id, name, btnEl) => {
   const card = document.getElementById(`wfcard-${id}`);
   if (!card) return;
-  // Pass the full workflow object so timeline can check trigger type
-  const wf = _allWorkflows.find(w => String(w.id) === String(id));
-  await runWithLivePanel(id, name, card, wf);
+  await runWithLivePanel(id, name, card);
 };
 
 // ─────────────────────────────────────────────

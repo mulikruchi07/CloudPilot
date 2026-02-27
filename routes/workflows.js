@@ -70,7 +70,6 @@ router.delete('/:id', async (req, res) => {
 
 // ─────────────────────────────────────────────
 // POST /api/workflows/:id/toggle
-// Uses PUT (not PATCH) since your n8n returns 405 on PATCH
 // ─────────────────────────────────────────────
 router.post('/:id/toggle', async (req, res) => {
   const { active } = req.body;
@@ -87,7 +86,7 @@ router.post('/:id/toggle', async (req, res) => {
     console.log(`   ↳ activate/deactivate failed: ${err.message}`);
   }
 
-  // Strategy 2: PUT with full workflow body (PATCH is blocked on your n8n)
+  // Strategy 2: PUT with full workflow body
   try {
     const existing = await n8nRequest(`/workflows/${workflowId}`);
     const body = buildFullBody(existing, { active });
@@ -102,15 +101,12 @@ router.post('/:id/toggle', async (req, res) => {
 // ─────────────────────────────────────────────
 // POST /api/workflows/:id/run
 //
-// n8n community edition has NO public API run endpoint.
-// /rest/* requires browser session cookies, not API keys.
-//
-// WORKING APPROACH for your setup:
-//  1. Ensure workflow has a Manual Trigger (inject via PUT if missing)
-//  2. Activate the workflow so its trigger is registered
-//  3. Call POST /api/v1/workflows/:id/run — this works when the
-//     workflow is ACTIVE in n8n 1.x community edition
-//  4. Deactivate again if it was originally inactive
+// Silent webhook-based execution strategy:
+//  1. Check Supabase for a stored webhook URL for this workflow
+//  2. If none, inject a Webhook trigger node into the workflow via PUT,
+//     activate the workflow, derive + store the webhook URL
+//  3. POST to the webhook URL silently — user just sees success/failure
+//  4. No URL is ever shown to the user
 // ─────────────────────────────────────────────
 router.post('/:id/run', async (req, res) => {
   const workflowId = req.params.id;
@@ -124,130 +120,98 @@ router.post('/:id/run', async (req, res) => {
   }
 
   const n8nBase = getN8nBaseUrl();
-  const headers = getN8nHeaders();
 
-  // ── 1. Fetch the workflow ──
-  let wf;
-  try {
-    wf = await n8nRequest(`/workflows/${workflowId}`);
-  } catch (err) {
-    return res.status(502).json({ error: `Cannot read workflow: ${err.message}` });
-  }
+  // ── 1. Check for stored webhook URL ──
+  let webhookUrl = await getStoredWebhookUrl(workflowId, userId);
 
-  const wasActive = wf.active;
-
-  // ── 2. Inject Manual Trigger via PUT if missing ──
-  if (!hasManualTrigger(wf.nodes || [])) {
-    console.log(`🔧 Injecting Manual Trigger into ${workflowId}`);
+  if (!webhookUrl) {
+    // ── 2. Fetch the workflow and ensure it has a Webhook trigger ──
+    let wf;
     try {
-      wf = await injectTriggerViaPut(workflowId, wf);
-      console.log(`✅ Manual Trigger injected via PUT`);
+      wf = await n8nRequest(`/workflows/${workflowId}`);
     } catch (err) {
-      return res.status(502).json({
-        error: `Failed to inject trigger: ${err.message}`,
-        hint: 'Open the workflow in n8n, add a Manual Trigger node manually, then try Run again.',
-      });
+      return res.status(502).json({ error: `Cannot read workflow: ${err.message}` });
     }
-  }
 
-  // ── 3. Activate workflow if inactive (required for run API) ──
-  if (!wf.active) {
+    const webhookNode = findWebhookTriggerNode(wf.nodes || []);
+
+    if (webhookNode) {
+      // Already has a webhook node — derive its URL
+      webhookUrl = deriveWebhookUrl(n8nBase, webhookNode);
+    } else {
+      // Inject a Webhook trigger node
+      console.log(`🔧 Injecting Webhook Trigger into workflow ${workflowId}`);
+      try {
+        const result = await injectWebhookTrigger(workflowId, wf, n8nBase);
+        wf = result.wf;
+        webhookUrl = result.webhookUrl;
+        console.log(`✅ Webhook Trigger injected: ${webhookUrl}`);
+      } catch (err) {
+        return res.status(502).json({
+          error: `Could not set up workflow for execution: ${err.message}`,
+        });
+      }
+    }
+
+    // ── 3. Activate the workflow so the webhook is live ──
     try {
       await n8nRequest(`/workflows/${workflowId}/activate`, 'POST');
-      console.log(`✅ Activated workflow ${workflowId} for execution`);
-      // small pause so n8n registers the activation
-      await delay(500);
+      console.log(`✅ Activated workflow ${workflowId}`);
+      await delay(600); // give n8n a moment to register the webhook
     } catch (err) {
       console.warn(`⚠ Could not activate workflow: ${err.message}`);
     }
+
+    // ── 4. Store the webhook URL for future runs ──
+    await storeWebhookUrl(workflowId, userId, webhookUrl);
   }
 
-  // ── 4. Try run endpoints ──
-  let execution = null;
-  const attempts = [];
-
-  // 4A: POST /api/v1/workflows/:id/run  (works when workflow is active)
+  // ── 5. Call the webhook silently ──
+  console.log(`📡 Calling webhook: ${webhookUrl}`);
+  let execution;
   try {
-    const url = `${n8nBase}/api/v1/workflows/${workflowId}/run`;
-    console.log(`📡 Run attempt A: POST ${url}`);
-    const r = await fetch(url, {
+    const r = await fetch(webhookUrl, {
       method: 'POST',
-      headers,
-      body: JSON.stringify({}),
-      signal: AbortSignal.timeout(10000),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: 'cloudpilot', workflowId }),
+      signal: AbortSignal.timeout(15000),
     });
+
     const text = await r.text();
     let body; try { body = JSON.parse(text); } catch (_) {}
-    attempts.push({ attempt: 'A: /api/v1/run', status: r.status, response: text.slice(0, 300) });
 
-    if (r.ok) {
-      execution = {
-        id: body?.data?.executionId || body?.executionId || body?.id || `A-${Date.now()}`,
-        workflowId,
-        status: 'running',
-      };
-      console.log(`✅ Run via /api/v1/workflows/${workflowId}/run`);
-    } else {
-      console.log(`   ↳ A failed: ${r.status} — ${text.slice(0, 150)}`);
-    }
-  } catch (err) {
-    attempts.push({ attempt: 'A: /api/v1/run', error: err.message });
-    console.log(`   ↳ A error: ${err.message}`);
-  }
-
-  // 4B: POST /api/v1/executions  (alternate endpoint)
-  if (!execution) {
-    try {
-      const url = `${n8nBase}/api/v1/executions`;
-      console.log(`📡 Run attempt B: POST ${url}`);
-      const r = await fetch(url, {
+    if (!r.ok && r.status !== 404) {
+      // 404 can happen briefly after activation — retry once
+      console.warn(`Webhook returned ${r.status}, retrying after 1s…`);
+      await delay(1000);
+      const r2 = await fetch(webhookUrl, {
         method: 'POST',
-        headers,
-        body: JSON.stringify({ workflowId }),
-        signal: AbortSignal.timeout(10000),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: 'cloudpilot', workflowId }),
+        signal: AbortSignal.timeout(15000),
       });
-      const text = await r.text();
-      let body; try { body = JSON.parse(text); } catch (_) {}
-      attempts.push({ attempt: 'B: /api/v1/executions', status: r.status, response: text.slice(0, 300) });
-
-      if (r.ok) {
-        execution = {
-          id: body?.data?.id || body?.id || `B-${Date.now()}`,
-          workflowId,
-          status: 'running',
-        };
-        console.log(`✅ Run via POST /api/v1/executions`);
-      } else {
-        console.log(`   ↳ B failed: ${r.status} — ${text.slice(0, 150)}`);
+      const text2 = await r2.text();
+      try { body = JSON.parse(text2); } catch (_) {}
+      if (!r2.ok) {
+        // Clear stored URL so next run re-derives it
+        await clearStoredWebhookUrl(workflowId, userId);
+        throw new Error(`Webhook returned ${r2.status}: ${text2.slice(0, 200)}`);
       }
-    } catch (err) {
-      attempts.push({ attempt: 'B: /api/v1/executions', error: err.message });
     }
+
+    execution = {
+      id: body?.executionId || body?.data?.executionId || body?.id || `wh-${Date.now()}`,
+      workflowId,
+      status: 'running',
+    };
+    console.log(`✅ Workflow triggered via webhook`);
+  } catch (err) {
+    // Clear stored URL so next run re-derives/re-injects
+    await clearStoredWebhookUrl(workflowId, userId);
+    return res.status(502).json({ error: `Execution failed: ${err.message}` });
   }
 
-  // ── 5. Restore original active state if we changed it ──
-  if (!wasActive) {
-    try {
-      await n8nRequest(`/workflows/${workflowId}/deactivate`, 'POST');
-      console.log(`✅ Restored workflow ${workflowId} to inactive`);
-    } catch (_) {}
-  }
-
-  // ── 6. Handle failure ──
-  if (!execution) {
-    console.error(`❌ All run attempts failed:`, JSON.stringify(attempts, null, 2));
-    return res.status(502).json({
-      error: 'Could not trigger workflow execution',
-      attempts,
-      hint: [
-        'Your n8n setup may need N8N_EXECUTIONS_MODE=regular in Docker environment.',
-        'Check your n8n Docker compose file and ensure the workflow has a Manual Trigger node.',
-        'Also confirm N8N_API_KEY is set and correct in both .env and n8n Docker env.',
-      ],
-    });
-  }
-
-  // ── 7. Log to Supabase ──
+  // ── 6. Log to Supabase ──
   try {
     const supabase = getSupabaseAdmin();
     await supabase.from('executions').insert({
@@ -280,65 +244,127 @@ router.get('/:id/executions', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// HELPERS
+// WEBHOOK URL STORAGE HELPERS
 // ─────────────────────────────────────────────
 
-function hasManualTrigger(nodes) {
-  return nodes.some(n =>
-    ['n8n-nodes-base.manualTrigger', 'n8n-nodes-base.start'].includes(n.type) ||
-    (n.type || '').toLowerCase().includes('manualtrigger') ||
-    ['start', 'manual trigger'].includes((n.name || '').toLowerCase())
-  );
+async function getStoredWebhookUrl(workflowId, userId) {
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data } = await supabase
+      .from('user_workflows')
+      .select('settings')
+      .eq('workflow_id', String(workflowId))
+      .eq('user_id', userId)
+      .maybeSingle();
+    return data?.settings?.webhook_url || null;
+  } catch (_) { return null; }
 }
 
-// Build a full workflow body suitable for PUT
-// n8n PUT rejects these fields as read-only: active, tags, versionId, meta
-function buildFullBody(existing, overrides = {}) {
-  const body = {
-    name: existing.name,
-    nodes: existing.nodes || [],
-    connections: existing.connections || {},
-    settings: existing.settings || { executionOrder: 'v1' },
-    staticData: existing.staticData || null,
-    ...overrides,
-  };
-  // Strip all read-only fields n8n rejects on PUT
-  delete body.active;
-  delete body.tags;
-  delete body.versionId;
-  delete body.meta;
-  delete body.id;
-  delete body.createdAt;
-  delete body.updatedAt;
-  return body;
+async function storeWebhookUrl(workflowId, userId, webhookUrl) {
+  try {
+    const supabase = getSupabaseAdmin();
+    // Upsert so it works for workflows not imported through templates
+    const { data: existing } = await supabase
+      .from('user_workflows')
+      .select('id, settings')
+      .eq('workflow_id', String(workflowId))
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from('user_workflows')
+        .update({ settings: { ...(existing.settings || {}), webhook_url: webhookUrl } })
+        .eq('workflow_id', String(workflowId))
+        .eq('user_id', userId);
+    } else {
+      await supabase.from('user_workflows').insert({
+        user_id: userId,
+        workflow_id: String(workflowId),
+        workflow_name: `Workflow ${workflowId}`,
+        is_active: true,
+        settings: { webhook_url: webhookUrl },
+      });
+    }
+    console.log(`💾 Stored webhook URL for workflow ${workflowId}`);
+  } catch (err) {
+    console.warn('Could not store webhook URL:', err.message);
+  }
 }
 
-// PUT the workflow — the only update method your n8n allows
-async function putWorkflow(workflowId, body) {
-  return n8nRequest(`/workflows/${workflowId}`, 'PUT', body);
+async function clearStoredWebhookUrl(workflowId, userId) {
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data: existing } = await supabase
+      .from('user_workflows')
+      .select('id, settings')
+      .eq('workflow_id', String(workflowId))
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (existing) {
+      const settings = { ...(existing.settings || {}) };
+      delete settings.webhook_url;
+      await supabase
+        .from('user_workflows')
+        .update({ settings })
+        .eq('workflow_id', String(workflowId))
+        .eq('user_id', userId);
+    }
+  } catch (_) {}
 }
 
-// Inject a Manual Trigger node via PUT (since PATCH is blocked)
-async function injectTriggerViaPut(workflowId, wf) {
-  const nodes = wf.nodes || [];
+// ─────────────────────────────────────────────
+// WEBHOOK NODE HELPERS
+// ─────────────────────────────────────────────
+
+function findWebhookTriggerNode(nodes) {
+  return nodes.find(n =>
+    (n.type || '').toLowerCase().includes('webhook') &&
+    !(n.type || '').toLowerCase().includes('respond')
+  ) || null;
+}
+
+function generateWebhookPath() {
+  // Generate a stable-looking random path
+  return 'cp-' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+}
+
+function deriveWebhookUrl(n8nBase, webhookNode) {
+  const path = webhookNode?.parameters?.path || webhookNode?.parameters?.webhookId;
+  if (!path) return null;
+  return `${n8nBase}/webhook/${path}`;
+}
+
+async function injectWebhookTrigger(workflowId, wf, n8nBase) {
+  const nodes = [...(wf.nodes || [])];
   const connections = { ...(wf.connections || {}) };
 
+  const webhookPath = generateWebhookPath();
+  const webhookUrl = `${n8nBase}/webhook/${webhookPath}`;
+
+  // Position the webhook node to the left of existing nodes
   const minX = nodes.length > 0 ? Math.min(...nodes.map(n => n.position?.[0] ?? 250)) : 250;
   const avgY = nodes.length > 0
     ? nodes.reduce((s, n) => s + (n.position?.[1] ?? 300), 0) / nodes.length
     : 300;
 
-  const triggerNode = {
-    parameters: {},
-    name: 'Manual Trigger',
-    type: 'n8n-nodes-base.manualTrigger',
+  const webhookNode = {
+    parameters: {
+      httpMethod: 'POST',
+      path: webhookPath,
+      responseMode: 'onReceived',
+      options: {},
+    },
+    name: 'CloudPilot Trigger',
+    type: 'n8n-nodes-base.webhook',
     typeVersion: 1,
     position: [minX - 220, Math.round(avgY)],
+    webhookId: webhookPath,
   };
 
-  const newNodes = [triggerNode, ...nodes];
+  const newNodes = [webhookNode, ...nodes];
 
-  // Find the entry node (nothing connects to it) and wire trigger → it
+  // Wire webhook → first unconnected node
   const receivingNodes = new Set();
   for (const src of Object.values(connections)) {
     for (const outputs of Object.values(src)) {
@@ -349,10 +375,10 @@ async function injectTriggerViaPut(workflowId, wf) {
   }
   const entryNode = nodes.find(n => !receivingNodes.has(n.name));
   if (entryNode) {
-    connections['Manual Trigger'] = { main: [[{ node: entryNode.name, type: 'main', index: 0 }]] };
+    connections['CloudPilot Trigger'] = { main: [[{ node: entryNode.name, type: 'main', index: 0 }]] };
   }
 
-  // Deactivate first so n8n allows the update
+  // Deactivate before PUT (n8n rejects updates to active workflows)
   const wasActive = wf.active;
   if (wasActive) {
     try { await n8nRequest(`/workflows/${workflowId}/deactivate`, 'POST'); } catch (_) {}
@@ -360,12 +386,35 @@ async function injectTriggerViaPut(workflowId, wf) {
 
   const updatedWf = await putWorkflow(workflowId, buildFullBody(wf, { nodes: newNodes, connections }));
 
-  // Re-activate if it was active (we'll activate again anyway in run, but be consistent)
-  if (wasActive) {
-    try { await n8nRequest(`/workflows/${workflowId}/activate`, 'POST'); } catch (_) {}
-  }
+  return { wf: updatedWf, webhookUrl };
+}
 
-  return updatedWf;
+// ─────────────────────────────────────────────
+// SHARED HELPERS
+// ─────────────────────────────────────────────
+
+function buildFullBody(existing, overrides = {}) {
+  const body = {
+    name: existing.name,
+    nodes: existing.nodes || [],
+    connections: existing.connections || {},
+    settings: existing.settings || { executionOrder: 'v1' },
+    staticData: existing.staticData || null,
+    ...overrides,
+  };
+  // Strip read-only fields n8n rejects on PUT
+  delete body.active;
+  delete body.tags;
+  delete body.versionId;
+  delete body.meta;
+  delete body.id;
+  delete body.createdAt;
+  delete body.updatedAt;
+  return body;
+}
+
+async function putWorkflow(workflowId, body) {
+  return n8nRequest(`/workflows/${workflowId}`, 'PUT', body);
 }
 
 async function syncToggleToSupabase(workflowId, active, userId) {
