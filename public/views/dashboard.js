@@ -74,13 +74,32 @@ function renderWorkflows(workflows) {
   grid.innerHTML = workflows.map(wf => buildWorkflowCard(wf)).join('');
 }
 
+// Detects any kind of manual/execute trigger node n8n might use
+function workflowHasRunTrigger(nodes) {
+  return (nodes || []).some(n => {
+    const type = (n.type || '').toLowerCase();
+    const name = (n.name || '').toLowerCase();
+    return (
+      type.includes('manualtrigger') ||
+      type.includes('n8n-nodes-base.start') ||
+      type === 'n8n-nodes-base.manualTrigger' ||
+      name === 'start' ||
+      name === 'manual trigger' ||
+      name.includes('execute workflow') ||   // "When clicking 'Execute workflow'"
+      name.includes('manual')
+    );
+  });
+}
+
 function buildWorkflowCard(wf) {
   const nodeCount = (wf.nodes || []).length;
-  const hasManualTrigger = (wf.nodes || []).some(n =>
-    (n.type || '').toLowerCase().includes('manualtrigger') ||
-    (n.type || '').toLowerCase().includes('n8n-nodes-base.start') ||
-    (n.name || '').toLowerCase() === 'start' ||
-    (n.name || '').toLowerCase().includes('manual trigger')
+  const hasRunTrigger = workflowHasRunTrigger(wf.nodes);
+  // Detect if this workflow uses a webhook-based trigger instead
+  const hasWebhookTrigger = (wf.nodes || []).some(n =>
+    (n.type || '').toLowerCase().includes('webhook') ||
+    (n.type || '').toLowerCase().includes('emailtrigger') ||
+    (n.type || '').toLowerCase().includes('gmail') ||
+    (n.name || '').toLowerCase().includes('trigger')
   );
 
   return `
@@ -107,7 +126,12 @@ function buildWorkflowCard(wf) {
           <i class="fas fa-cubes"></i>
           <span>${nodeCount} nodes</span>
         </div>
-        ${!hasManualTrigger ? `
+        ${hasWebhookTrigger && !hasRunTrigger ? `
+        <div class="meta-item meta-item--info">
+          <i class="fas fa-bolt"></i>
+          <span>Webhook-triggered workflow</span>
+        </div>` : ''}
+        ${!hasRunTrigger && !hasWebhookTrigger ? `
         <div class="meta-item meta-item--warn">
           <i class="fas fa-magic"></i>
           <span>Run trigger will be added automatically</span>
@@ -154,19 +178,19 @@ function setupSearch() {
 
 // ─────────────────────────────────────────────
 // Run — opens live animated panel
-// Auto-patches missing manual trigger before running
 // ─────────────────────────────────────────────
 window._runWorkflow = async (id, name, btnEl) => {
   const card = document.getElementById(`wfcard-${id}`);
   if (!card) return;
-  await runWithLivePanel(id, name, card);
+  // Pass the full workflow object so timeline can check trigger type
+  const wf = _allWorkflows.find(w => String(w.id) === String(id));
+  await runWithLivePanel(id, name, card, wf);
 };
 
 // ─────────────────────────────────────────────
 // Toggle — visual switch + API call
 // ─────────────────────────────────────────────
 window._toggleWorkflow = async (id, active, name, checkboxEl) => {
-  // Optimistic UI — checkbox already flipped by browser
   const card = document.getElementById(`wfcard-${id}`);
   const badge = card?.querySelector('.status-badge');
   if (badge) {
@@ -176,14 +200,11 @@ window._toggleWorkflow = async (id, active, name, checkboxEl) => {
 
   try {
     await api.toggleWorkflow(id, active);
-    // Update local cache
     const wf = _allWorkflows.find(w => String(w.id) === String(id));
     if (wf) wf.active = active;
-    // Update stats
     updateStats(_allWorkflows);
     showToast(`${active ? '✅ Activated' : '⏸ Deactivated'}: ${name}`, active ? 'success' : 'info');
   } catch (err) {
-    // Revert checkbox on failure
     if (checkboxEl) checkboxEl.checked = !active;
     if (badge) {
       badge.className = `status-badge ${!active ? 'active' : 'inactive'}`;

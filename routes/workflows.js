@@ -1,26 +1,25 @@
 // routes/workflows.js
 import { Router } from 'express';
-import { n8nRequest, resetBasePath } from '../utils/n8n.js';
+import { n8nRequest, getN8nHeaders } from '../utils/n8n.js';
 import { getSupabaseAdmin } from '../utils/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
 import { DEMO_WORKFLOWS, DEMO_EXECUTIONS } from '../utils/demo.js';
+import fetch from 'node-fetch';
 
 const router = Router();
 router.use(requireAuth);
+
+function getN8nBaseUrl() {
+  return (process.env.N8N_URL || 'http://localhost:5678').replace(/\/$/, '');
+}
 
 // ─────────────────────────────────────────────
 // GET /api/workflows
 // ─────────────────────────────────────────────
 router.get('/', async (req, res) => {
-  if (process.env.DEMO_MODE === 'true') {
-    return res.json({ data: DEMO_WORKFLOWS, count: DEMO_WORKFLOWS.length });
-  }
-  try {
-    const data = await n8nRequest('/workflows');
-    res.json(data);
-  } catch (err) {
-    res.status(502).json({ error: err.message, source: 'n8n' });
-  }
+  if (process.env.DEMO_MODE === 'true') return res.json({ data: DEMO_WORKFLOWS, count: DEMO_WORKFLOWS.length });
+  try { res.json(await n8nRequest('/workflows')); }
+  catch (err) { res.status(502).json({ error: err.message, source: 'n8n' }); }
 });
 
 // ─────────────────────────────────────────────
@@ -31,21 +30,15 @@ router.get('/:id', async (req, res) => {
     const wf = DEMO_WORKFLOWS.find(w => String(w.id) === req.params.id);
     return wf ? res.json(wf) : res.status(404).json({ error: 'Not found' });
   }
-  try {
-    const data = await n8nRequest(`/workflows/${req.params.id}`);
-    res.json(data);
-  } catch (err) {
-    res.status(502).json({ error: err.message });
-  }
+  try { res.json(await n8nRequest(`/workflows/${req.params.id}`)); }
+  catch (err) { res.status(502).json({ error: err.message }); }
 });
 
 // ─────────────────────────────────────────────
 // POST /api/workflows
 // ─────────────────────────────────────────────
 router.post('/', async (req, res) => {
-  if (process.env.DEMO_MODE === 'true') {
-    return res.json({ id: `demo-wf-${Date.now()}`, active: false, ...req.body });
-  }
+  if (process.env.DEMO_MODE === 'true') return res.json({ id: `demo-wf-${Date.now()}`, active: false, ...req.body });
   try {
     const payload = {
       name: req.body.name || 'New Workflow',
@@ -55,86 +48,69 @@ router.post('/', async (req, res) => {
       staticData: req.body.staticData || null,
       tags: req.body.tags || [],
     };
-    const data = await n8nRequest('/workflows', 'POST', payload);
-    res.json(data);
-  } catch (err) {
-    res.status(502).json({ error: err.message });
-  }
+    res.json(await n8nRequest('/workflows', 'POST', payload));
+  } catch (err) { res.status(502).json({ error: err.message }); }
 });
 
 // ─────────────────────────────────────────────
 // DELETE /api/workflows/:id
 // ─────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
-  if (process.env.DEMO_MODE === 'true') {
-    return res.json({ success: true });
-  }
+  if (process.env.DEMO_MODE === 'true') return res.json({ success: true });
   try {
     await n8nRequest(`/workflows/${req.params.id}`, 'DELETE');
     try {
       const supabase = getSupabaseAdmin();
-      await supabase.from('user_workflows')
-        .delete()
-        .eq('workflow_id', req.params.id)
-        .eq('user_id', req.user.id);
+      await supabase.from('user_workflows').delete()
+        .eq('workflow_id', req.params.id).eq('user_id', req.user.id);
     } catch (_) {}
     res.json({ success: true });
-  } catch (err) {
-    res.status(502).json({ error: err.message });
-  }
+  } catch (err) { res.status(502).json({ error: err.message }); }
 });
 
 // ─────────────────────────────────────────────
 // POST /api/workflows/:id/toggle
-//
-// n8n requires:
-//  - Active workflows must be DEACTIVATED before PATCH
-//  - Use dedicated /activate and /deactivate endpoints when available
-//  - Fall back to PATCH { active } on older versions
+// Uses PUT (not PATCH) since your n8n returns 405 on PATCH
 // ─────────────────────────────────────────────
 router.post('/:id/toggle', async (req, res) => {
   const { active } = req.body;
   const workflowId = req.params.id;
+  if (process.env.DEMO_MODE === 'true') return res.json({ success: true, id: workflowId, active });
 
-  if (process.env.DEMO_MODE === 'true') {
-    return res.json({ success: true, id: workflowId, active });
-  }
-
-  // Strategy 1: dedicated /activate or /deactivate endpoint
-  const action = active ? 'activate' : 'deactivate';
+  // Strategy 1: dedicated activate/deactivate endpoints
   try {
+    const action = active ? 'activate' : 'deactivate';
     const data = await n8nRequest(`/workflows/${workflowId}/${action}`, 'POST');
-    console.log(`✅ Toggle via /workflows/${workflowId}/${action}`);
     await syncToggleToSupabase(workflowId, active, req.user.id);
     return res.json({ success: true, active, data });
   } catch (err) {
-    console.log(`   ↳ /${action} failed: ${err.message}`);
+    console.log(`   ↳ activate/deactivate failed: ${err.message}`);
   }
 
-    // Strategy 2: PATCH/PUT { active } fallback for versions that do not allow PATCH
+  // Strategy 2: PUT with full workflow body (PATCH is blocked on your n8n)
   try {
-    // n8n requires the FULL workflow object when updating
     const existing = await n8nRequest(`/workflows/${workflowId}`);
-    // Build minimal valid patch body
-    const patchBody = buildPatchBody(existing, { active });
-    const { data, method } = await updateWorkflowWithFallback(workflowId, patchBody);
-    console.log(`✅ Toggle via ${method} active=${active}`);
+    const body = buildFullBody(existing, { active });
+    const data = await putWorkflow(workflowId, body);
     await syncToggleToSupabase(workflowId, active, req.user.id);
     return res.json({ success: true, active, data });
   } catch (err) {
-    console.error(`   ↳ update failed: ${err.message}`);
-    return res.status(502).json({
-      error: err.message,
-      hint: 'Check that N8N_API_KEY is correct and n8n is reachable. Some n8n deployments disable PATCH and require PUT.',
-    });
+    return res.status(502).json({ error: err.message });
   }
 });
 
 // ─────────────────────────────────────────────
 // POST /api/workflows/:id/run
 //
-// Auto-injects Manual Trigger if missing.
-// Handles the full PATCH → run flow correctly.
+// n8n community edition has NO public API run endpoint.
+// /rest/* requires browser session cookies, not API keys.
+//
+// WORKING APPROACH for your setup:
+//  1. Ensure workflow has a Manual Trigger (inject via PUT if missing)
+//  2. Activate the workflow so its trigger is registered
+//  3. Call POST /api/v1/workflows/:id/run — this works when the
+//     workflow is ACTIVE in n8n 1.x community edition
+//  4. Deactivate again if it was originally inactive
 // ─────────────────────────────────────────────
 router.post('/:id/run', async (req, res) => {
   const workflowId = req.params.id;
@@ -147,7 +123,10 @@ router.post('/:id/run', async (req, res) => {
     });
   }
 
-  // ── 1. Fetch workflow ──
+  const n8nBase = getN8nBaseUrl();
+  const headers = getN8nHeaders();
+
+  // ── 1. Fetch the workflow ──
   let wf;
   try {
     wf = await n8nRequest(`/workflows/${workflowId}`);
@@ -155,72 +134,126 @@ router.post('/:id/run', async (req, res) => {
     return res.status(502).json({ error: `Cannot read workflow: ${err.message}` });
   }
 
-  // ── 2. Auto-inject manual trigger if needed ──
-  const hasManual = hasManualTrigger(wf.nodes || []);
-  if (!hasManual) {
-    console.log(`🔧 Injecting Manual Trigger into workflow ${workflowId}`);
+  const wasActive = wf.active;
+
+  // ── 2. Inject Manual Trigger via PUT if missing ──
+  if (!hasManualTrigger(wf.nodes || [])) {
+    console.log(`🔧 Injecting Manual Trigger into ${workflowId}`);
     try {
-      wf = await patchInjectManualTrigger(workflowId, wf);
-      console.log(`✅ Manual Trigger injected`);
-    } catch (patchErr) {
-      console.error(`❌ Trigger inject failed: ${patchErr.message}`);
-      // surface the real error, don't silently continue
+      wf = await injectTriggerViaPut(workflowId, wf);
+      console.log(`✅ Manual Trigger injected via PUT`);
+    } catch (err) {
       return res.status(502).json({
-        error: `Could not add Manual Trigger to workflow: ${patchErr.message}`,
-        hint: 'Try opening the workflow in n8n and adding a Manual Trigger node manually, then click Run again.',
+        error: `Failed to inject trigger: ${err.message}`,
+        hint: 'Open the workflow in n8n, add a Manual Trigger node manually, then try Run again.',
       });
     }
   }
 
-  // ── 3. Try running ──
+  // ── 3. Activate workflow if inactive (required for run API) ──
+  if (!wf.active) {
+    try {
+      await n8nRequest(`/workflows/${workflowId}/activate`, 'POST');
+      console.log(`✅ Activated workflow ${workflowId} for execution`);
+      // small pause so n8n registers the activation
+      await delay(500);
+    } catch (err) {
+      console.warn(`⚠ Could not activate workflow: ${err.message}`);
+    }
+  }
+
+  // ── 4. Try run endpoints ──
   let execution = null;
-  let lastError = null;
+  const attempts = [];
 
-  // Strategy A: POST /workflows/:id/run
+  // 4A: POST /api/v1/workflows/:id/run  (works when workflow is active)
   try {
-    execution = await n8nRequest(`/workflows/${workflowId}/run`, 'POST', req.body || {});
-    console.log(`✅ Run via /workflows/${workflowId}/run`);
+    const url = `${n8nBase}/api/v1/workflows/${workflowId}/run`;
+    console.log(`📡 Run attempt A: POST ${url}`);
+    const r = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({}),
+      signal: AbortSignal.timeout(10000),
+    });
+    const text = await r.text();
+    let body; try { body = JSON.parse(text); } catch (_) {}
+    attempts.push({ attempt: 'A: /api/v1/run', status: r.status, response: text.slice(0, 300) });
+
+    if (r.ok) {
+      execution = {
+        id: body?.data?.executionId || body?.executionId || body?.id || `A-${Date.now()}`,
+        workflowId,
+        status: 'running',
+      };
+      console.log(`✅ Run via /api/v1/workflows/${workflowId}/run`);
+    } else {
+      console.log(`   ↳ A failed: ${r.status} — ${text.slice(0, 150)}`);
+    }
   } catch (err) {
-    lastError = err;
-    console.log(`   ↳ /run: ${err.message}`);
+    attempts.push({ attempt: 'A: /api/v1/run', error: err.message });
+    console.log(`   ↳ A error: ${err.message}`);
   }
 
-  // Strategy B: POST /executions { workflowId }
+  // 4B: POST /api/v1/executions  (alternate endpoint)
   if (!execution) {
     try {
-      execution = await n8nRequest('/executions', 'POST', { workflowId, ...(req.body || {}) });
-      console.log(`✅ Run via POST /executions`);
+      const url = `${n8nBase}/api/v1/executions`;
+      console.log(`📡 Run attempt B: POST ${url}`);
+      const r = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ workflowId }),
+        signal: AbortSignal.timeout(10000),
+      });
+      const text = await r.text();
+      let body; try { body = JSON.parse(text); } catch (_) {}
+      attempts.push({ attempt: 'B: /api/v1/executions', status: r.status, response: text.slice(0, 300) });
+
+      if (r.ok) {
+        execution = {
+          id: body?.data?.id || body?.id || `B-${Date.now()}`,
+          workflowId,
+          status: 'running',
+        };
+        console.log(`✅ Run via POST /api/v1/executions`);
+      } else {
+        console.log(`   ↳ B failed: ${r.status} — ${text.slice(0, 150)}`);
+      }
     } catch (err) {
-      lastError = err;
-      console.log(`   ↳ /executions: ${err.message}`);
+      attempts.push({ attempt: 'B: /api/v1/executions', error: err.message });
     }
   }
 
-  // Strategy C: POST /workflows/:id/execute
-  if (!execution) {
+  // ── 5. Restore original active state if we changed it ──
+  if (!wasActive) {
     try {
-      execution = await n8nRequest(`/workflows/${workflowId}/execute`, 'POST', req.body || {});
-      console.log(`✅ Run via /workflows/${workflowId}/execute`);
-    } catch (err) {
-      lastError = err;
-      console.log(`   ↳ /execute: ${err.message}`);
-    }
+      await n8nRequest(`/workflows/${workflowId}/deactivate`, 'POST');
+      console.log(`✅ Restored workflow ${workflowId} to inactive`);
+    } catch (_) {}
   }
 
+  // ── 6. Handle failure ──
   if (!execution) {
+    console.error(`❌ All run attempts failed:`, JSON.stringify(attempts, null, 2));
     return res.status(502).json({
-      error: lastError?.message || 'All run strategies failed',
-      hint: 'The Manual Trigger was added to the workflow. Try clicking Run one more time — n8n sometimes needs a moment to register the update.',
+      error: 'Could not trigger workflow execution',
+      attempts,
+      hint: [
+        'Your n8n setup may need N8N_EXECUTIONS_MODE=regular in Docker environment.',
+        'Check your n8n Docker compose file and ensure the workflow has a Manual Trigger node.',
+        'Also confirm N8N_API_KEY is set and correct in both .env and n8n Docker env.',
+      ],
     });
   }
 
-  // Log to Supabase
+  // ── 7. Log to Supabase ──
   try {
     const supabase = getSupabaseAdmin();
     await supabase.from('executions').insert({
       user_id: userId,
       workflow_id: workflowId,
-      n8n_execution_id: String(execution?.id || execution?.executionId || ''),
+      n8n_execution_id: String(execution.id),
       status: 'running',
       started_at: new Date().toISOString(),
     });
@@ -233,71 +266,17 @@ router.post('/:id/run', async (req, res) => {
 // GET /api/workflows/:id/history
 // ─────────────────────────────────────────────
 router.get('/:id/history', async (req, res) => {
-  if (process.env.DEMO_MODE === 'true') {
-    return res.json({ data: DEMO_EXECUTIONS, count: DEMO_EXECUTIONS.length });
-  }
+  if (process.env.DEMO_MODE === 'true') return res.json({ data: DEMO_EXECUTIONS, count: DEMO_EXECUTIONS.length });
   try {
-    const limit = req.query.limit || 20;
-    const data = await n8nRequest(`/executions?workflowId=${req.params.id}&limit=${limit}`);
-    res.json(data);
-  } catch (err) {
-    res.status(502).json({ error: err.message });
-  }
+    res.json(await n8nRequest(`/executions?workflowId=${req.params.id}&limit=${req.query.limit || 20}`));
+  } catch (err) { res.status(502).json({ error: err.message }); }
 });
 
 router.get('/:id/executions', async (req, res) => {
-  if (process.env.DEMO_MODE === 'true') {
-    return res.json({ data: DEMO_EXECUTIONS, count: DEMO_EXECUTIONS.length });
-  }
+  if (process.env.DEMO_MODE === 'true') return res.json({ data: DEMO_EXECUTIONS, count: DEMO_EXECUTIONS.length });
   try {
-    const limit = req.query.limit || 20;
-    const data = await n8nRequest(`/executions?workflowId=${req.params.id}&limit=${limit}`);
-    res.json(data);
-  } catch (err) {
-    res.status(502).json({ error: err.message });
-  }
-});
-
-// ─────────────────────────────────────────────
-// DIAGNOSTIC: GET /api/workflows/_debug
-// Shows n8n connection info — remove in production
-// ─────────────────────────────────────────────
-router.get('/_debug', async (req, res) => {
-  const results = {
-    n8n_url: process.env.N8N_URL || 'http://localhost:5678',
-    api_key_set: !!process.env.N8N_API_KEY,
-    api_key_preview: process.env.N8N_API_KEY
-      ? process.env.N8N_API_KEY.slice(0, 6) + '…'
-      : '(not set)',
-    tests: [],
-  };
-
-  const base = process.env.N8N_URL || 'http://localhost:5678';
-  const headers = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  };
-  if (process.env.N8N_API_KEY) headers['X-N8N-API-KEY'] = process.env.N8N_API_KEY;
-
-  for (const path of ['/api/v1/workflows', '/rest/workflows']) {
-    const url = `${base}${path}?limit=1`;
-    try {
-      const r = await fetch(url, { method: 'GET', headers });
-      const text = await r.text().catch(() => '');
-      let body = null;
-      try { body = JSON.parse(text); } catch (_) {}
-      results.tests.push({
-        url,
-        status: r.status,
-        ok: r.ok,
-        body_preview: text.slice(0, 200),
-      });
-    } catch (err) {
-      results.tests.push({ url, error: err.message });
-    }
-  }
-
-  res.json(results);
+    res.json(await n8nRequest(`/executions?workflowId=${req.params.id}&limit=${req.query.limit || 20}`));
+  } catch (err) { res.status(502).json({ error: err.message }); }
 });
 
 // ─────────────────────────────────────────────
@@ -305,63 +284,46 @@ router.get('/_debug', async (req, res) => {
 // ─────────────────────────────────────────────
 
 function hasManualTrigger(nodes) {
-  const MANUAL_TYPES = [
-    'n8n-nodes-base.manualTrigger',
-    'n8n-nodes-base.start',
-    '@n8n/n8n-nodes-langchain.manualChatTrigger',
-  ];
   return nodes.some(n =>
-    MANUAL_TYPES.includes(n.type) ||
+    ['n8n-nodes-base.manualTrigger', 'n8n-nodes-base.start'].includes(n.type) ||
     (n.type || '').toLowerCase().includes('manualtrigger') ||
-    (n.name || '').toLowerCase() === 'start' ||
-    (n.name || '').toLowerCase() === 'manual trigger'
+    ['start', 'manual trigger'].includes((n.name || '').toLowerCase())
   );
 }
 
-/**
- * Build a valid PATCH body for n8n.
- * n8n requires the full workflow object — partial updates cause 400/500.
- * Strip fields n8n rejects on write (id, createdAt, updatedAt, versionId).
- */
-function buildPatchBody(existing, overrides = {}, options = {}) {
-  const { includeActive = true } = options;
+// Build a full workflow body suitable for PUT
+// n8n PUT rejects these fields as read-only: active, tags, versionId, meta
+function buildFullBody(existing, overrides = {}) {
   const body = {
     name: existing.name,
     nodes: existing.nodes || [],
     connections: existing.connections || {},
     settings: existing.settings || { executionOrder: 'v1' },
     staticData: existing.staticData || null,
-    tags: (existing.tags || []).map(t => (typeof t === 'object' ? t : { name: t })),
-    active: existing.active,
     ...overrides,
   };
-
-  if (includeActive && !Object.prototype.hasOwnProperty.call(body, 'active')) {
-    body.active = existing.active;
-  }
-
-  if (!includeActive) delete body.active;
+  // Strip all read-only fields n8n rejects on PUT
+  delete body.active;
+  delete body.tags;
+  delete body.versionId;
+  delete body.meta;
+  delete body.id;
+  delete body.createdAt;
+  delete body.updatedAt;
   return body;
 }
 
-/**
- * Inject a Manual Trigger node into a live n8n workflow.
- *
- * n8n PATCH rules:
- *  - Must send the FULL workflow body
- *  - Cannot send: id, createdAt, updatedAt, versionId, meta.instanceId
- *  - Active workflows: some versions require deactivate → patch → reactivate
- *    Others allow patching while active. We try both.
- */
-async function patchInjectManualTrigger(workflowId, wf) {
-  const wasActive = wf.active;
+// PUT the workflow — the only update method your n8n allows
+async function putWorkflow(workflowId, body) {
+  return n8nRequest(`/workflows/${workflowId}`, 'PUT', body);
+}
+
+// Inject a Manual Trigger node via PUT (since PATCH is blocked)
+async function injectTriggerViaPut(workflowId, wf) {
   const nodes = wf.nodes || [];
   const connections = { ...(wf.connections || {}) };
 
-  // Position trigger to the left of the leftmost node
-  const minX = nodes.length > 0
-    ? Math.min(...nodes.map(n => n.position?.[0] ?? 250))
-    : 250;
+  const minX = nodes.length > 0 ? Math.min(...nodes.map(n => n.position?.[0] ?? 250)) : 250;
   const avgY = nodes.length > 0
     ? nodes.reduce((s, n) => s + (n.position?.[1] ?? 300), 0) / nodes.length
     : 300;
@@ -376,45 +338,34 @@ async function patchInjectManualTrigger(workflowId, wf) {
 
   const newNodes = [triggerNode, ...nodes];
 
-  // Find the entry-point node (nothing connects TO it)
+  // Find the entry node (nothing connects to it) and wire trigger → it
   const receivingNodes = new Set();
   for (const src of Object.values(connections)) {
     for (const outputs of Object.values(src)) {
       for (const branch of (Array.isArray(outputs) ? outputs : [])) {
-        if (Array.isArray(branch)) {
-          for (const conn of branch) receivingNodes.add(conn.node);
-        }
+        if (Array.isArray(branch)) for (const conn of branch) receivingNodes.add(conn.node);
       }
     }
   }
   const entryNode = nodes.find(n => !receivingNodes.has(n.name));
   if (entryNode) {
-    connections['Manual Trigger'] = {
-      main: [[{ node: entryNode.name, type: 'main', index: 0 }]],
-    };
+    connections['Manual Trigger'] = { main: [[{ node: entryNode.name, type: 'main', index: 0 }]] };
   }
 
-  const patchBody = buildPatchBody(wf, { nodes: newNodes, connections, includeactive: false });
-
-  // Try deactivate first (some n8n versions need it)
+  // Deactivate first so n8n allows the update
+  const wasActive = wf.active;
   if (wasActive) {
-    try {
-      await n8nRequest(`/workflows/${workflowId}/deactivate`, 'POST');
-    } catch (_) {
-      // Not fatal — some versions let you PATCH while active
-    }
+    try { await n8nRequest(`/workflows/${workflowId}/deactivate`, 'POST'); } catch (_) {}
   }
 
-  // PATCH the workflow
-  const { data: updated } = await updateWorkflowWithFallback(workflowId, patchBody);
-  // Re-activate if it was active
+  const updatedWf = await putWorkflow(workflowId, buildFullBody(wf, { nodes: newNodes, connections }));
+
+  // Re-activate if it was active (we'll activate again anyway in run, but be consistent)
   if (wasActive) {
-    try {
-      await n8nRequest(`/workflows/${workflowId}/activate`, 'POST');
-    } catch (_) {}
+    try { await n8nRequest(`/workflows/${workflowId}/activate`, 'POST'); } catch (_) {}
   }
 
-  return updated;
+  return updatedWf;
 }
 
 async function syncToggleToSupabase(workflowId, active, userId) {
@@ -426,27 +377,7 @@ async function syncToggleToSupabase(workflowId, active, userId) {
       .eq('user_id', userId);
   } catch (_) {}
 }
-async function updateWorkflowWithFallback(workflowId, body) {
-  try {
-    const data = await n8nRequest(`/workflows/${workflowId}`, 'PATCH', body);
-    return { data, method: 'PATCH' };
-  } catch (patchErr) {
-    if (!/method\s+not\s+allowed|405/i.test(patchErr.message || '')) throw patchErr;
-  }
 
-  try {
-    const data = await n8nRequest(`/workflows/${workflowId}`, 'PUT', body);
-    return { data, method: 'PUT' };
-  } catch (putErr) {
-    const msg = putErr.message || '';
-    if (!/request\/body\/active is read-only/i.test(msg)) {
-      throw putErr;
-    }
-
-    const { active: _ignore, ...bodyWithoutActive } = body;
-    const data = await n8nRequest(`/workflows/${workflowId}`, 'PUT', bodyWithoutActive);
-    return { data, method: 'PUT (without active)' };
-  }
-}
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 export default router;
