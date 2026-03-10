@@ -87,8 +87,8 @@ function buildHistoryRow(exec, num) {
   const start = exec.startedAt || exec.started_at;
   const duration = getDuration(exec);
   return `
-    <div class="exec-row exec-row--${status}" id="row-${escapeHtml(id)}"
-         onclick="window._openExec('${escapeHtml(id)}', ${JSON.stringify(exec).replace(/"/g, '&quot;')})">
+    <div class="exec-row exec-row--${status}" id="row-${escapeHtml(String(id))}"
+         onclick="window._openExec('${escapeHtml(String(id))}', ${JSON.stringify(exec).replace(/"/g, '&quot;')})">
       <div class="exec-row-bullet exec-bullet--${status}">
         <i class="fas fa-${statusIcon(status)}${status === 'running' ? ' fa-spin' : ''}"></i>
       </div>
@@ -265,51 +265,6 @@ function getNodeIcon(node) {
 }
 
 // ─────────────────────────────────────────────
-// Detect if a workflow is webhook-triggered
-// (has no manual trigger but has a webhook/email trigger node)
-// ─────────────────────────────────────────────
-function isWebhookWorkflow(wf) {
-  if (!wf) return false;
-  const nodes = wf.nodes || [];
-  const hasManual = nodes.some(n => {
-    const type = (n.type || '').toLowerCase();
-    const name = (n.name || '').toLowerCase();
-    return (
-      type.includes('manualtrigger') ||
-      type === 'n8n-nodes-base.start' ||
-      name === 'start' ||
-      name === 'manual trigger' ||
-      name.includes('execute workflow') ||
-      name.includes('manual')
-    );
-  });
-  if (hasManual) return false;
-  return nodes.some(n =>
-    (n.type || '').toLowerCase().includes('webhook') ||
-    (n.type || '').toLowerCase().includes('emailtrigger') ||
-    (n.type || '').toLowerCase().includes('gmail') ||
-    (n.name || '').toLowerCase().includes('trigger')
-  );
-}
-
-// Extract webhook URL from workflow nodes
-function getWebhookUrl(wf) {
-  if (!wf) return null;
-  const node = (wf.nodes || []).find(n =>
-    (n.type || '').toLowerCase().includes('webhook') ||
-    (n.type || '').toLowerCase().includes('emailtrigger') ||
-    (n.name || '').toLowerCase().includes('trigger')
-  );
-  // n8n stores webhook path in node parameters
-  const path = node?.parameters?.path || node?.parameters?.webhookId || '';
-  if (!path) return null;
-  const base = window.location.hostname === 'localhost'
-    ? 'http://localhost:5678'
-    : window.__N8N_URL__ || 'http://localhost:5678';
-  return `${base}/webhook/${path}`;
-}
-
-// ─────────────────────────────────────────────
 // LIVE RUN PANEL
 // ─────────────────────────────────────────────
 export function showLiveRunPanel(workflowId, workflowName, cardEl) {
@@ -344,13 +299,13 @@ export function showLiveRunPanel(workflowId, workflowName, cardEl) {
 
 // ─────────────────────────────────────────────
 // Main run entry point
-// wf = full workflow object (optional, passed from dashboard)
 // ─────────────────────────────────────────────
 export async function runWithLivePanel(workflowId, workflowName, cardEl, wf = null) {
   const panel = showLiveRunPanel(workflowId, workflowName, cardEl);
   const stepsEl = document.getElementById(`live-steps-${workflowId}`);
   const footerEl = document.getElementById(`live-footer-${workflowId}`);
 
+  // ── Local helpers ──
   function addStep(label, status = 'running', detail = '') {
     const el = document.createElement('div');
     el.className = `live-step live-step--${status}`;
@@ -382,67 +337,69 @@ export async function runWithLivePanel(workflowId, workflowName, cardEl, wf = nu
     }
   }
 
+  function successFooter() {
+    return `
+      <div class="live-result-bar live-result--ok">
+        <span style="color:var(--success)">
+          <i class="fas fa-check-circle"></i> Workflow triggered successfully
+        </span>
+        <button class="wf-btn secondary" style="font-size:11px;padding:5px 10px"
+          onclick="window.location.hash='/execution/${workflowId}'">
+          <i class="fas fa-history"></i> History
+        </button>
+      </div>`;
+  }
+
+  function showRunError(message, hint = '') {
+    footerEl.innerHTML = `
+      <div class="live-result-bar live-result--err">
+        <div style="flex:1">
+          <div style="color:var(--accent);font-weight:700;margin-bottom:4px">
+            <i class="fas fa-exclamation-triangle"></i> Execution failed
+          </div>
+          <div style="font-size:11px;color:#8a9bc0">${escapeHtml(message)}</div>
+          ${hint ? `<div style="font-size:11px;color:#5a6f8a;margin-top:4px"><i class="fas fa-info-circle"></i> ${escapeHtml(hint)}</div>` : ''}
+        </div>
+        <a href="http://localhost:5678/workflow/${workflowId}" target="_blank"
+           class="wf-btn secondary" style="font-size:11px;padding:5px 10px;text-decoration:none;white-space:nowrap">
+          <i class="fas fa-external-link-alt"></i> Open in n8n
+        </a>
+      </div>`;
+  }
+
+  // ── Main flow ──
   try {
     updateLastStep('success', 'Connected to n8n');
     await delay(300);
 
-    // ── Strategy 1: API run (works when workflow has Manual Trigger) ──
     addStep('Triggering workflow execution…', 'running');
     await delay(200);
 
-    let result = null;
-    let usedWebhook = false;
-
-    try {
-      result = await api.runWorkflow(workflowId);
-    } catch (runErr) {
-      // API run failed — check if this is a webhook-triggered workflow
-      updateLastStep('error', runErr.message.split(' — ')[0]);
-      await delay(200);
-
-      // ── Strategy 2: Webhook trigger ──
-      const webhookUrl = getWebhookUrl(wf);
-      if (webhookUrl) {
-        addStep('Trying webhook trigger…', 'running');
-        await delay(200);
-        try {
-          result = await api.triggerWebhook(workflowId, webhookUrl, {});
-          usedWebhook = true;
-          updateLastStep('success', 'Webhook accepted');
-        } catch (webhookErr) {
-          updateLastStep('error', webhookErr.message);
-          showRunError(footerEl, workflowId, webhookErr.message,
-            'Make sure the workflow is Active in n8n and the webhook URL is correct.');
-          return;
-        }
-      } else {
-        // ── Strategy 3: Prompt user for webhook URL ──
-        updateLastStep('error', 'API run not supported by this n8n version');
-        showWebhookPrompt(footerEl, workflowId, workflowName, stepsEl, addStep, updateLastStep);
-        return;
-      }
-    }
-
-    // ── Success path ──
-    if (!usedWebhook) {
-      updateLastStep('success', `Execution ID: ${result?.execution?.id || 'started'}`);
-    }
-    await delay(300);
-
+    const result = await api.runWorkflow(workflowId);
     const execId = result?.execution?.id || result?.execution?.executionId;
-    if (execId && !usedWebhook) {
+
+    // If execId starts with "wh-" it's a fallback fake ID — don't try to poll it
+    const canPoll = execId && !String(execId).startsWith('wh-');
+
+    if (canPoll) {
+      updateLastStep('success', `Execution ID: ${execId}`);
+      await delay(300);
+
       addStep('Waiting for completion…', 'running');
       const finalData = await pollExecution(execId);
+
       if (finalData) {
         const nodes = finalData.timeline || [];
         updateLastStep('success', `${nodes.length} nodes executed`);
         await delay(200);
+
         if (nodes.length) {
           addStep('Building execution report…', 'running');
           await delay(400);
           updateLastStep('success');
           renderInlineResults(footerEl, finalData);
         }
+
         const allOk = nodes.every(n => n.status !== 'failed');
         footerEl.insertAdjacentHTML('beforeend', `
           <div class="live-result-bar ${allOk ? 'live-result--ok' : 'live-result--err'}">
@@ -455,120 +412,28 @@ export async function runWithLivePanel(workflowId, workflowName, cardEl, wf = nu
               <i class="fas fa-history"></i> Full History
             </button>
           </div>`);
+      } else {
+        // Poll timed out — workflow still running or very slow
+        addStep('Workflow running in background', 'success');
+        footerEl.innerHTML = successFooter();
       }
     } else {
-      // Webhook or fire-and-forget
-      addStep('Workflow dispatched', 'success',
-        usedWebhook ? 'Webhook accepted — n8n is processing' : 'n8n is processing in the background');
-      footerEl.innerHTML = `
-        <div class="live-result-bar live-result--ok">
-          <span style="color:var(--success)">
-            <i class="fas fa-check-circle"></i> Workflow triggered successfully
-          </span>
-          <button class="wf-btn secondary" style="font-size:11px;padding:5px 10px"
-            onclick="window.location.hash='/execution/${workflowId}'">
-            <i class="fas fa-history"></i> History
-          </button>
-        </div>`;
+      // Webhook fire-and-forget — no real execution ID returned
+      updateLastStep('success', 'Workflow dispatched');
+      await delay(200);
+      addStep('Workflow dispatched', 'success', 'n8n is processing in the background');
+      footerEl.innerHTML = successFooter();
     }
+
   } catch (err) {
     updateLastStep('error', err.message);
-    footerEl.innerHTML = `<div class="live-result-bar live-result--err">
-      <span style="color:var(--accent)"><i class="fas fa-times-circle"></i> ${escapeHtml(err.message)}</span>
-    </div>`;
+    showRunError(err.message);
   }
 }
 
-// Show a prompt asking the user to paste their webhook URL
-function showWebhookPrompt(footerEl, workflowId, workflowName, stepsEl, addStep, updateLastStep) {
-  footerEl.innerHTML = `
-    <div class="live-result-bar live-result--err" style="flex-direction:column;align-items:flex-start;gap:10px">
-      <div>
-        <div style="color:var(--accent);font-weight:700;margin-bottom:4px">
-          <i class="fas fa-exclamation-triangle"></i> API run not supported
-        </div>
-        <div style="font-size:11px;color:#8a9bc0;line-height:1.6">
-          Your n8n version doesn't expose a run API. Paste your workflow's webhook URL below to trigger it directly.
-          <br>Find it in n8n → open workflow → click the trigger node → copy the <strong style="color:#c8d3eb">Production URL</strong>.
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;width:100%">
-        <input id="webhookUrlInput-${workflowId}"
-          type="text"
-          placeholder="http://localhost:5678/webhook/xxxxxxxx"
-          style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:12px"
-        />
-        <button class="wf-btn primary" style="font-size:12px;padding:6px 14px;white-space:nowrap"
-          onclick="window._triggerWithWebhook('${workflowId}')">
-          <i class="fas fa-bolt"></i> Trigger
-        </button>
-      </div>
-      <a href="http://localhost:5678/workflow/${workflowId}" target="_blank"
-         style="font-size:11px;color:#6366f1;text-decoration:none">
-        <i class="fas fa-external-link-alt"></i> Open workflow in n8n
-      </a>
-    </div>`;
-
-  // Wire up the trigger button
-  window._triggerWithWebhook = async (wfId) => {
-    const input = document.getElementById(`webhookUrlInput-${wfId}`);
-    const url = input?.value?.trim();
-    if (!url) { input.style.borderColor = 'var(--accent)'; return; }
-
-    footerEl.innerHTML = '';
-    addStep(`Calling webhook…`, 'running', url);
-
-    try {
-      await api.triggerWebhook(wfId, url, {});
-      updateLastStep('success', 'Webhook accepted — n8n is processing');
-      footerEl.innerHTML = `
-        <div class="live-result-bar live-result--ok">
-          <span style="color:var(--success)">
-            <i class="fas fa-check-circle"></i> Workflow triggered via webhook
-          </span>
-          <button class="wf-btn secondary" style="font-size:11px;padding:5px 10px"
-            onclick="window.location.hash='/execution/${wfId}'">
-            <i class="fas fa-history"></i> History
-          </button>
-        </div>`;
-      // Save webhook URL so next run works automatically
-      localStorage.setItem(`webhookUrl-${wfId}`, url);
-    } catch (err) {
-      updateLastStep('error', err.message);
-      showRunError(footerEl, wfId, err.message,
-        'Check that the workflow is Active in n8n and the URL is the Production webhook URL.');
-    }
-  };
-
-  // Pre-fill saved webhook URL if available
-  const saved = localStorage.getItem(`webhookUrl-${workflowId}`);
-  if (saved) {
-    const input = document.getElementById(`webhookUrlInput-${workflowId}`);
-    if (input) input.value = saved;
-  }
-}
-
-function showRunError(footerEl, workflowId, message, hint = '') {
-  footerEl.innerHTML = `
-    <div class="live-result-bar live-result--err">
-      <div style="flex:1">
-        <div style="color:var(--accent);font-weight:700;margin-bottom:4px">
-          <i class="fas fa-exclamation-triangle"></i> Execution failed
-        </div>
-        <div style="font-size:11px;color:#8a9bc0">${escapeHtml(message)}</div>
-        ${hint ? `<div style="font-size:11px;color:#5a6f8a;margin-top:4px"><i class="fas fa-info-circle"></i> ${escapeHtml(hint)}</div>` : ''}
-      </div>
-      <a href="http://localhost:5678/workflow/${workflowId}" target="_blank"
-         class="wf-btn secondary" style="font-size:11px;padding:5px 10px;text-decoration:none;white-space:nowrap">
-        <i class="fas fa-external-link-alt"></i> Open in n8n
-      </a>
-    </div>`;
-}
-
-function getN8nWorkflowUrl(workflowId) {
-  return `http://localhost:5678/workflow/${workflowId}`;
-}
-
+// ─────────────────────────────────────────────
+// POLLING
+// ─────────────────────────────────────────────
 async function pollExecution(execId) {
   for (let i = 0; i < 24; i++) {
     await delay(2500);
@@ -580,6 +445,9 @@ async function pollExecution(execId) {
   return null;
 }
 
+// ─────────────────────────────────────────────
+// INLINE RESULTS
+// ─────────────────────────────────────────────
 function renderInlineResults(container, data) {
   const rows = (data.timeline || []).map(node => {
     const ok = node.status !== 'failed';
@@ -594,19 +462,25 @@ function renderInlineResults(container, data) {
   if (rows) container.insertAdjacentHTML('afterbegin', `<div class="inline-nodes-list">${rows}</div>`);
 }
 
+// ─────────────────────────────────────────────
+// UTILITIES
+// ─────────────────────────────────────────────
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
 function execStatus(exec) {
   if (exec.status === 'success' || exec.finished === true) return 'success';
   if (exec.status === 'error' || exec.status === 'failed') return 'error';
   if (exec.status === 'running' || exec.finished === false) return 'running';
   return 'unknown';
 }
+
 function statusIcon(s) {
   if (s === 'success') return 'check-circle';
   if (s === 'error') return 'times-circle';
   if (s === 'running') return 'circle-notch';
   return 'question-circle';
 }
+
 function getDuration(exec) {
   const start = exec.startedAt || exec.started_at;
   const end = exec.stoppedAt || exec.finished_at;

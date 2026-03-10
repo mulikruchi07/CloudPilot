@@ -1,7 +1,8 @@
-// public/views/dashboard.js - Workflow dashboard with toggle switch
+// public/views/dashboard.js - Workflow dashboard with onboarding
 import { api, escapeHtml, formatDate } from '../api.js';
 import { showToast, setPageHeader, setTopActions } from '../ui.js';
 import { runWithLivePanel } from './timeline.js';
+import { renderOnboardingChecklist, isOnboarded } from '../onboarding.js';
 
 let _allWorkflows = [];
 
@@ -24,7 +25,7 @@ export async function dashboardView() {
     const data = await api.getWorkflows();
     _allWorkflows = data?.data || data?.workflows || [];
     updateStats(_allWorkflows);
-    renderWorkflows(_allWorkflows);
+    await renderDashboardContent(_allWorkflows);
     setupSearch();
   } catch (err) {
     grid.innerHTML = `
@@ -38,6 +39,46 @@ export async function dashboardView() {
       </div>`;
     updateStatsError();
   }
+}
+
+async function renderDashboardContent(workflows) {
+  const grid = document.getElementById('workflowsGrid');
+
+  // Create a container for onboarding checklist + workflow cards
+  grid.innerHTML = '';
+
+  // Onboarding checklist for new users
+  const onboardingContainer = document.createElement('div');
+  onboardingContainer.id = 'onboardingContainer';
+  onboardingContainer.style.cssText = 'grid-column:1/-1';
+  grid.appendChild(onboardingContainer);
+
+  // Show onboarding checklist if not completed
+  if (!isOnboarded()) {
+    await renderOnboardingChecklist(onboardingContainer);
+  }
+
+  if (!workflows.length) {
+    const emptyEl = document.createElement('div');
+    emptyEl.className = 'empty-state';
+    emptyEl.style.gridColumn = '1 / -1';
+    emptyEl.innerHTML = `
+      <i class="fas fa-project-diagram"></i>
+      <h3>No workflows yet</h3>
+      <p>Import a template to get started with your first automation</p>
+      <button class="btn-create" onclick="window.location.hash='/templates'">
+        <i class="fas fa-boxes"></i> Browse Templates
+      </button>`;
+    grid.appendChild(emptyEl);
+    return;
+  }
+
+  workflows.forEach(wf => {
+    const cardEl = document.createElement('div');
+    cardEl.innerHTML = buildWorkflowCard(wf);
+    const card = cardEl.firstElementChild;
+    grid.appendChild(card);
+  });
 }
 
 function updateStats(workflows) {
@@ -55,25 +96,6 @@ function updateStatsError() {
   document.getElementById('lastSync').textContent = 'Failed to sync';
 }
 
-function renderWorkflows(workflows) {
-  const grid = document.getElementById('workflowsGrid');
-
-  if (!workflows.length) {
-    grid.innerHTML = `
-      <div class="empty-state">
-        <i class="fas fa-project-diagram"></i>
-        <h3>No workflows yet</h3>
-        <p>Import a template or create one in n8n to get started</p>
-        <button class="btn-create" onclick="window.location.hash='/templates'">
-          <i class="fas fa-boxes"></i> Browse Templates
-        </button>
-      </div>`;
-    return;
-  }
-
-  grid.innerHTML = workflows.map(wf => buildWorkflowCard(wf)).join('');
-}
-
 function buildWorkflowCard(wf) {
   const nodeCount = (wf.nodes || []).length;
 
@@ -84,7 +106,6 @@ function buildWorkflowCard(wf) {
           <h3 title="${escapeHtml(wf.name)}">${escapeHtml(wf.name)}</h3>
           <span class="wf-id">${escapeHtml(String(wf.id))}</span>
         </div>
-        <!-- TOGGLE SWITCH -->
         <label class="toggle-switch" title="${wf.active ? 'Deactivate workflow' : 'Activate workflow'}">
           <input type="checkbox" ${wf.active ? 'checked' : ''}
             onchange="window._toggleWorkflow('${escapeHtml(wf.id)}', this.checked, '${escapeHtml(wf.name).replace(/'/g, "\\'")}', this)">
@@ -132,17 +153,41 @@ function buildWorkflowCard(wf) {
 function setupSearch() {
   window._dashboardSearch = (query) => {
     const q = query.toLowerCase().trim();
-    if (!q) return renderWorkflows(_allWorkflows);
-    renderWorkflows(_allWorkflows.filter(wf =>
-      (wf.name || '').toLowerCase().includes(q) ||
-      (wf.id || '').toLowerCase().includes(q) ||
-      (wf.tags || []).some(t => (t.name || t).toLowerCase().includes(q))
-    ));
+    const filtered = q
+      ? _allWorkflows.filter(wf =>
+          (wf.name || '').toLowerCase().includes(q) ||
+          (wf.id || '').toLowerCase().includes(q) ||
+          (wf.tags || []).some(t => (t.name || t).toLowerCase().includes(q))
+        )
+      : _allWorkflows;
+
+    // Re-render only workflow cards, keep onboarding
+    const grid = document.getElementById('workflowsGrid');
+    // Remove all workflow cards
+    grid.querySelectorAll('.wf-card').forEach(c => c.remove());
+
+    if (!filtered.length) {
+      const emptyEl = document.createElement('div');
+      emptyEl.className = 'empty-state';
+      emptyEl.style.gridColumn = '1 / -1';
+      emptyEl.innerHTML = `
+        <i class="fas fa-search"></i>
+        <h3>No workflows match "${escapeHtml(q)}"</h3>
+        <p>Try a different search term</p>`;
+      grid.appendChild(emptyEl);
+      return;
+    }
+
+    filtered.forEach(wf => {
+      const cardEl = document.createElement('div');
+      cardEl.innerHTML = buildWorkflowCard(wf);
+      grid.appendChild(cardEl.firstElementChild);
+    });
   };
 }
 
 // ─────────────────────────────────────────────
-// Run — opens live animated panel
+// Run workflow
 // ─────────────────────────────────────────────
 window._runWorkflow = async (id, name, btnEl) => {
   const card = document.getElementById(`wfcard-${id}`);
@@ -151,7 +196,7 @@ window._runWorkflow = async (id, name, btnEl) => {
 };
 
 // ─────────────────────────────────────────────
-// Toggle — visual switch + API call
+// Toggle workflow active state
 // ─────────────────────────────────────────────
 window._toggleWorkflow = async (id, active, name, checkboxEl) => {
   const card = document.getElementById(`wfcard-${id}`);
@@ -177,6 +222,9 @@ window._toggleWorkflow = async (id, active, name, checkboxEl) => {
   }
 };
 
+// ─────────────────────────────────────────────
+// Delete workflow
+// ─────────────────────────────────────────────
 window._deleteWorkflow = async (id, name) => {
   if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
   try {
