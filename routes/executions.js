@@ -2,11 +2,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { getSupabaseAdmin } from '../utils/supabase.js';
-<<<<<<< HEAD
 import { engineGetExecution, engineDeleteExecution } from '../utils/engine.js';
-=======
-import { n8nRequest } from '../utils/n8n.js';
->>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
 import { DEMO_EXECUTIONS, DEMO_TIMELINE } from '../utils/demo.js';
 
 const router = Router();
@@ -14,11 +10,8 @@ router.use(requireAuth);
 
 // ─────────────────────────────────────────────
 // GET /api/executions - List user's executions
-<<<<<<< HEAD
 // Reads from Supabase — no engine call.
 // SELECT list is explicit to prevent engine fields leaking.
-=======
->>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
 // ─────────────────────────────────────────────
 router.get('/', async (req, res) => {
   if (process.env.DEMO_MODE === 'true') {
@@ -29,11 +22,7 @@ router.get('/', async (req, res) => {
     const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from('executions')
-<<<<<<< HEAD
       .select('id, status, trigger_type, started_at, finished_at, duration_ms, error_message, user_workflow_id')
-=======
-      .select('*')
->>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
       .eq('user_id', req.user.id)
       .order('started_at', { ascending: false })
       .limit(50);
@@ -41,20 +30,13 @@ router.get('/', async (req, res) => {
     if (error) throw error;
     res.json({ executions: data });
   } catch (err) {
-<<<<<<< HEAD
     res.status(500).json({ error: 'Failed to load executions' });
-=======
-    res.status(500).json({ error: err.message });
->>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
   }
 });
 
 // ─────────────────────────────────────────────
 // GET /api/executions/:id - Single execution
-<<<<<<< HEAD
 // Reads from Supabase first. engine_execution_ref is stripped from response.
-=======
->>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
 // ─────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   if (process.env.DEMO_MODE === 'true') {
@@ -63,7 +45,6 @@ router.get('/:id', async (req, res) => {
   }
 
   try {
-<<<<<<< HEAD
     const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from('executions')
@@ -79,34 +60,19 @@ router.get('/:id', async (req, res) => {
     res.json(safe);
   } catch (err) {
     res.status(500).json({ error: 'Failed to load execution' });
-=======
-    const data = await n8nRequest(`/executions/${req.params.id}`);
-    res.json(data);
-  } catch (err) {
-    res.status(502).json({ error: err.message });
->>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
   }
 });
 
 // ─────────────────────────────────────────────
-<<<<<<< HEAD
 // GET /api/executions/:id/timeline - Node-by-node breakdown
 // Looks up the engine_execution_ref from Supabase,
 // then fetches node-level data from the engine.
-=======
-// GET /api/executions/:id/timeline - Node-by-node
->>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
 // ─────────────────────────────────────────────
 router.get('/:id/timeline', async (req, res) => {
   if (process.env.DEMO_MODE === 'true') {
     return res.json({
-<<<<<<< HEAD
       timeline:     DEMO_TIMELINE,
       status:       'success',
-=======
-      timeline: DEMO_TIMELINE,
-      status: 'success',
->>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
       execution_id: req.params.id,
     });
   }
@@ -114,22 +80,14 @@ router.get('/:id/timeline', async (req, res) => {
   try {
     const supabase = getSupabaseAdmin();
 
-<<<<<<< HEAD
     // Load our execution record — enforce ownership
     const { data: execRecord, error: recErr } = await supabase
       .from('executions')
       .select('id, status, started_at, finished_at, engine_execution_ref')
-=======
-    // Find the n8n_execution_id from our DB
-    const { data: execRecord } = await supabase
-      .from('executions')
-      .select('*')
->>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
       .eq('id', req.params.id)
       .eq('user_id', req.user.id)
       .single();
 
-<<<<<<< HEAD
     if (recErr || !execRecord) {
       return res.status(404).json({ error: 'Execution not found' });
     }
@@ -156,38 +114,17 @@ router.get('/:id/timeline', async (req, res) => {
       const run        = nodeRuns?.[0] || {};
       const startTime  = run.startTime ? new Date(run.startTime) : null;
       const execTime   = run.executionTime || 0;
-=======
-    const n8nId = execRecord?.n8n_execution_id || req.params.id;
-
-    // Fetch from n8n with full execution data
-    const execution = await n8nRequest(`/executions/${n8nId}?includeData=true`);
-
-    // Parse node-by-node timeline
-    const timeline = [];
-
-    const runData = execution?.data?.resultData?.runData || {};
-
-    for (const [nodeName, nodeRuns] of Object.entries(runData)) {
-      const run = nodeRuns?.[0] || {};
-      const startTime = run.startTime ? new Date(run.startTime) : null;
-      const execTime = run.executionTime || 0;
->>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
       const finishTime = startTime ? new Date(startTime.getTime() + execTime) : null;
 
       let outputPreview = null;
       try {
         const outputItems = run.data?.main?.[0];
-<<<<<<< HEAD
         if (outputItems?.length > 0) {
-=======
-        if (outputItems && outputItems.length > 0) {
->>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
           outputPreview = JSON.stringify(outputItems[0]?.json || {}, null, 2).slice(0, 500);
         }
       } catch (_) {}
 
       timeline.push({
-<<<<<<< HEAD
         node_name:      nodeName,
         node_type:      run.source?.[0]?.previousNode ? 'action' : 'trigger',
         status:         run.error ? 'failed' : 'success',
@@ -226,55 +163,12 @@ router.get('/:id/timeline', async (req, res) => {
     });
   } catch (err) {
     res.status(502).json({ error: 'Could not load execution details. Please try again.' });
-=======
-        node_name: nodeName,
-        node_type: run.source?.[0]?.previousNode ? 'action' : 'trigger',
-        status: run.error ? 'failed' : 'success',
-        started_at: startTime?.toISOString() || null,
-        finished_at: finishTime?.toISOString() || null,
-        duration_ms: execTime,
-        output_preview: outputPreview,
-        error: run.error?.message || null,
-      });
-    }
-
-    // Update execution status in DB
-    try {
-      const status = execution.finished
-        ? (execution.status === 'error' ? 'error' : 'success')
-        : 'running';
-
-      await supabase.from('executions').upsert({
-        n8n_execution_id: String(n8nId),
-        user_id: req.user.id,
-        workflow_id: String(execution.workflowId || ''),
-        status,
-        finished_at: execution.stoppedAt || null,
-        execution_data: execution.data || null,
-        duration_ms: execution.data?.startData ? null : null,
-      }, { onConflict: 'n8n_execution_id' });
-    } catch (_) { /* Non-fatal */ }
-
-    res.json({
-      timeline,
-      status: execution.finished ? (execution.status || 'success') : 'running',
-      execution_id: n8nId,
-      workflow_id: execution.workflowId,
-      started_at: execution.startedAt,
-      finished_at: execution.stoppedAt,
-    });
-  } catch (err) {
-    res.status(502).json({ error: err.message });
->>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
   }
 });
 
 // ─────────────────────────────────────────────
 // DELETE /api/executions/:id
-<<<<<<< HEAD
 // Verifies ownership before touching the engine.
-=======
->>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
 // ─────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   if (process.env.DEMO_MODE === 'true') {
@@ -282,7 +176,6 @@ router.delete('/:id', async (req, res) => {
   }
 
   try {
-<<<<<<< HEAD
     const supabase = getSupabaseAdmin();
 
     const { data, error } = await supabase
@@ -327,13 +220,4 @@ function scrubExecutionData(data) {
   }
 }
 
-=======
-    await n8nRequest(`/executions/${req.params.id}`, 'DELETE');
-    res.json({ success: true });
-  } catch (err) {
-    res.status(502).json({ error: err.message });
-  }
-});
-
->>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
 export default router;
