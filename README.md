@@ -220,47 +220,6 @@ headers: {
 - Service role key for backend operations only
 - JWT token validation
 
-### Best Practices
-- Never commit `.env` file
-- Rotate encryption keys regularly
-- Use HTTPS in production
-- Implement rate limiting
-- Regular security audits
-
-## 🧪 Testing
-
-### Manual Testing Checklist
-
-**Authentication:**
-- [ ] User can sign up
-- [ ] User can log in
-- [ ] User can log out
-- [ ] Invalid credentials are rejected
-
-**Credentials:**
-- [ ] User can add AWS credentials
-- [ ] User can add GCP credentials
-- [ ] User can add Azure credentials
-- [ ] Credentials are encrypted in database
-- [ ] User can delete credentials
-- [ ] User can test credentials
-
-**Workflows:**
-- [ ] User can view workflows
-- [ ] User can run workflows
-- [ ] User can delete workflows
-- [ ] Execution history is recorded
-
-**Settings:**
-- [ ] User can update profile
-- [ ] User can change password
-- [ ] Changes are reflected in UI
-
-**Security:**
-- [ ] Users can only see their own data
-- [ ] Invalid tokens are rejected
-- [ ] RLS policies work correctly
-
 ## 📈 Performance Optimization
 
 - Database indexes on frequently queried columns
@@ -268,60 +227,6 @@ headers: {
 - Caching of static data
 - Lazy loading of execution history
 - Optimistic UI updates
-
-## 🚀 Deployment
-
-### Production Checklist
-
-1. **Environment Setup**
-   - [ ] Production Supabase project created
-   - [ ] Production n8n instance deployed
-   - [ ] Environment variables configured
-   - [ ] Encryption key generated and secured
-   - [ ] SSL certificates configured
-
-2. **Database**
-   - [ ] Schema deployed
-   - [ ] RLS policies enabled
-   - [ ] Indexes created
-   - [ ] Backups configured
-
-3. **Security**
-   - [ ] CORS properly configured
-   - [ ] Rate limiting enabled
-   - [ ] API keys rotated
-   - [ ] Security headers set
-
-4. **Monitoring**
-   - [ ] Error tracking (Sentry)
-   - [ ] Performance monitoring
-   - [ ] Database monitoring
-   - [ ] Uptime monitoring
-
-5. **Testing**
-   - [ ] All features tested
-   - [ ] Load testing completed
-   - [ ] Security audit passed
-
-### Deployment Options
-
-**Option 1: Vercel (Recommended for Frontend)**
-```bash
-vercel --prod
-```
-
-**Option 2: Railway/Render (Full Stack)**
-```bash
-# Connect your repository
-# Set environment variables
-# Deploy
-```
-
-**Option 3: Docker**
-```bash
-docker build -t cloudpilot .
-docker run -p 4000:4000 --env-file .env cloudpilot
-```
 
 ## 🐛 Troubleshooting
 
@@ -358,37 +263,12 @@ Contributions are welcome! Please follow these steps:
 4. Test thoroughly
 5. Submit a pull request
 
-## 📝 License
-
-MIT License - see LICENSE file for details
-
 ## 👥 Support
 
 For support, please:
 - Open an issue on GitHub
 - Check existing documentation
 - Review troubleshooting section
-
-## 🗺️ Roadmap
-
-### Phase 1 (Current)
-- ✅ Core authentication
-- ✅ Workflow management
-- ✅ Credential management
-- ✅ Execution tracking
-
-### Phase 2 (Planned)
-- [ ] Workflow analytics dashboard
-- [ ] Team collaboration
-- [ ] API rate limiting
-- [ ] Usage quotas
-- [ ] Billing integration
-
-### Phase 3 (Future)
-- [ ] Multi-region support
-- [ ] Workflow marketplace
-- [ ] Advanced monitoring
-- [ ] Compliance features (SOC2, GDPR)
 
 ## 📊 Tech Stack
 
