@@ -1,0 +1,261 @@
+{
+  "name": "Automated cost-monitoring & scaling of AWS resources",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## AWS Cost Monitoring & Dynamic Scaling Workflow\n\nThis workflow automates the tracking of AWS costs, triggers alerts when thresholds are met, and can initiate dynamic scaling actions to optimize cloud spend.\n\n**Key Components:**\n\n1.  **Scheduled Trigger:** Initiates daily/hourly checks.\n2.  **Cost Data Ingestion:** Fetches data from AWS Cost Explorer.\n3.  **Cost Analysis & Alerting:** Processes data, identifies cost anomalies, and sends notifications.\n4.  **Scaling Decision Logic (Advanced):** Determines which AWS resources to scale based on custom criteria (requires further development).\n5.  **AWS Scaling Actions (Advanced):** Executes API calls to stop/downscale resources (requires further development).\n6.  **Reporting:** Generates and distributes periodic summaries.\n7.  **Audit Logging:** Stores workflow execution logs for compliance.\n\n**Next Steps:**\n\n*   Configure AWS credentials for all AWS nodes.\n*   Refine cost thresholds in \"Analyze Cost & Set Alerts\".\n*   Implement detailed scaling logic in \"Decide Scaling Actions\" using AWS API calls.\n*   Set up notification channels (Slack, Email).\n*   Configure DynamoDB and S3 for logging and archiving.",
+        "height": 500,
+        "width": 500,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -688,
+        -208
+      ],
+      "name": "Workflow Overview",
+      "id": "generated-c8c9777c-ca61-4eb8-a7f9-6b558c90f474"
+    },
+    {
+      "parameters": {
+        "triggerTimes": {
+          "values": []
+        }
+      },
+      "type": "n8n-nodes-base.cron",
+      "position": [
+        0,
+        0
+      ],
+      "name": "Hourly/Daily Cost Check",
+      "id": "generated-f33b6f6f-2ee5-4032-ab52-d64e98451695"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ce.us-east-1.amazonaws.com",
+        "sendHeaders": true,
+        "headerParameters": {
+          "values": []
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "='''\n{\n  \"TimePeriod\": {\n    \"Start\": \"{{ new Date(new Date().setDate(new Date().getDate() - 1)).toISOString().split('T')[0] }}\",\n    \"End\": \"{{ new Date().toISOString().split('T')[0] }}\"\n  },\n  \"Granularity\": \"DAILY\",\n  \"Metrics\": [\n    \"BlendedCost\",\n    \"UnblendedCost\",\n    \"UsageQuantity\"\n  ],\n  \"GroupBy\": [\n    {\n      \"Type\": \"DIMENSION\",\n      \"Key\": \"SERVICE\"\n    }\n  ]\n}\n'''",
+        "options": {
+          "batching": {},
+          "allowUnauthorizedCerts": false,
+          "lowercaseHeaders": true,
+          "redirect": {},
+          "response": {},
+          "pagination": {},
+          "proxy": "",
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Fetch AWS Cost Data",
+      "position": [
+        240,
+        0
+      ],
+      "id": "generated-06cf35df-855f-4831-8bf0-062bd8013966"
+    },
+    {
+      "parameters": {
+        "functionCode": "='''\nconst costData = items[0].json;\nlet totalDailyCost = 0;\nconst alerts = [];\nconst costByService = {};\n\nif (costData.ResultsByTime && costData.ResultsByTime.length > 0) {\n  for (const result of costData.ResultsByTime) {\n    for (const group of result.Groups) {\n      const serviceName = group.Keys[0];\n      const amount = parseFloat(group.Metrics.BlendedCost.Amount);\n      totalDailyCost += amount;\n      costByService[serviceName] = (costByService[serviceName] || 0) + amount;\n    }\n  }\n}\n\n// Define your monthly budget threshold\nconst MONTHLY_BUDGET_THRESHOLD = 500; // e.g., $500\nconst DAILY_SPIKE_THRESHOLD_PERCENT = 20; // e.g., 20% increase from average\n\n// Simple monthly cost projection (very basic, for demonstration)\nconst daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();\nconst currentDayOfMonth = new Date().getDate();\nconst projectedMonthlyCost = (totalDailyCost / currentDayOfMonth) * daysInMonth;\n\nif (projectedMonthlyCost > MONTHLY_BUDGET_THRESHOLD) {\n  alerts.push(`🚨 Projected monthly cost (${projectedMonthlyCost.toFixed(2)}$) exceeds budget threshold (${MONTHLY_BUDGET_THRESHOLD}$).`);\n}\n\n// More advanced: Compare with historical average for daily spike\n// This would require fetching historical data and storing it,\n// or integrating with CloudWatch Alarms for cost anomaly detection.\n// For now, a placeholder.\n// if (totalDailyCost > (averageDailyCost * (1 + DAILY_SPIKE_THRESHOLD_PERCENT / 100))) {\n//   alerts.push(`⚠️ Daily cost (${totalDailyCost.toFixed(2)}$) spiked significantly!`);\n// }\n\nreturn [{ json: { totalDailyCost, projectedMonthlyCost, costByService, alerts, timestamp: new Date().toISOString() } }];\n'''"
+      },
+      "type": "n8n-nodes-base.function",
+      "position": [
+        480,
+        0
+      ],
+      "name": "Analyze Cost & Set Alerts",
+      "id": "generated-992e7dcd-bc68-4bb0-9b47-e1fc92c70e26"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "operation": "equals",
+              "value1": "={{ $json.alerts.length > 0 }}",
+              "value2": true
+            }
+          ]
+        },
+        "options": {
+          "ignoreCase": true,
+          "looseTypeValidation": true
+        }
+      },
+      "name": "Are There Alerts?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        720,
+        0
+      ],
+      "id": "generated-a9fb7d5a-f1cd-4bd5-9025-b02480de608c"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "mode": "name",
+          "value": "#aws-cost-alerts"
+        },
+        "text": "={{ \"AWS Cost Alert!\\n\" + $json.alerts.join('\\n') + \"\\nTotal Daily Cost: $\" + $json.totalDailyCost.toFixed(2) + \"\\nProjected Monthly Cost: $\" + $json.projectedMonthlyCost.toFixed(2) }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": true,
+          "link_names": false,
+          "mrkdwn": true,
+          "unfurl_links": false,
+          "unfurl_media": true,
+          "sendAsUser": ""
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "name": "Send Cost Alert to Slack",
+      "position": [
+        960,
+        -96
+      ],
+      "id": "generated-fa5440c4-d2d6-4eff-915a-30d2267a9234",
+      "webhookId": "7014e6d5-82ca-43c0-8c60-d08545944f36"
+    },
+    {
+      "parameters": {
+        "tableName": [
+          "aws-cost-audit-logs"
+        ],
+        "fieldsUi": {
+          "values": []
+        },
+        "additionalFields": {
+          "eavUi": {
+            "values": []
+          },
+          "conditionExpression": "",
+          "eanUi": {
+            "values": []
+          }
+        }
+      },
+      "name": "Log Workflow Run",
+      "position": [
+        1200,
+        0
+      ],
+      "type": "n8n-nodes-base.awsDynamoDb",
+      "id": "generated-2fa831ec-218e-4c72-a6ab-55e4e0a97444",
+      "credentials": {
+        "aws": {
+          "id": "eu5W7MhBkluzy2o7",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "='''\n// This is a highly conceptual example. Real implementation would involve:\n// 1. Calling AWS APIs (e.g., CloudWatch, EC2, S3, Lambda) to get resource details and metrics.\n//    You might need multiple HTTP Request nodes before this Function node, or use AWS SDK in a custom node.\n// 2. Applying business logic to identify idle/underutilized resources.\n// 3. Generating a list of scaling actions.\n\nconst potentialScalingActions = [];\n\n// Example: EC2 instance identification for stopping (conceptual)\n// Imagine input from a previous HTTP Request to AWS EC2 ListInstances\nconst ec2Instances = [\n  { instanceId: 'i-0abcdef1234567890', cpuUtilization: 5, tags: { 'AutoScaling': 'true', 'Environment': 'dev' }, state: 'running' },\n  { instanceId: 'i-0fedcba9876543210', cpuUtilization: 80, tags: { 'AutoScaling': 'true', 'Environment': 'prod' }, state: 'running' }\n];\n\nfor (const instance of ec2Instances) {\n  if (instance.state === 'running' && instance.cpuUtilization < 10 && instance.tags['AutoScaling'] === 'true' && instance.tags['Environment'] === 'dev') {\n    potentialScalingActions.push({\n      resourceType: 'EC2',\n      action: 'stop',\n      instanceId: instance.instanceId,\n      reason: `CPU utilization (${instance.cpuUtilization}%) below threshold for dev environment.`\n    });\n  }\n}\n\n// Example: S3 bucket identification for cleanup (conceptual)\n// Imagine input from a previous AWS S3 ListFiles node\nconst s3Buckets = [\n  { bucketName: 'my-old-logs', lastModified: new Date('2022-01-01').toISOString(), objectCount: 100000 },\n  { bucketName: 'active-data', lastModified: new Date().toISOString(), objectCount: 1000 }\n];\n\nconst today = new Date();\nconst threeMonthsAgo = new Date();\nthreeMonthsAgo.setMonth(today.getMonth() - 3);\n\nfor (const bucket of s3Buckets) {\n  if (new Date(bucket.lastModified) < threeMonthsAgo && bucket.bucketName.includes('logs')) {\n    potentialScalingActions.push({\n      resourceType: 'S3',\n      action: 'clean_old_objects',\n      bucketName: bucket.bucketName,\n      reason: `Bucket contains old log data (last modified ${bucket.lastModified})`\n    });\n  }\n}\n\n// Example: Lambda concurrency reduction (conceptual)\n// Imagine input from a previous HTTP Request to AWS Lambda GetFunctionConfiguration\nconst lambdaFunctions = [\n  { functionName: 'MyIdleFunction', currentConcurrency: 100, averageInvocations: 5 },\n  { functionName: 'MyBusyFunction', currentConcurrency: 1000, averageInvocations: 800 }\n];\n\nfor (const func of lambdaFunctions) {\n  if (func.currentConcurrency > func.averageInvocations * 2 && func.averageInvocations < 10) {\n    potentialScalingActions.push({\n      resourceType: 'Lambda',\n      action: 'reduce_concurrency',\n      functionName: func.functionName,\n      newConcurrency: Math.max(10, Math.ceil(func.averageInvocations * 1.5)), // Set a minimum and dynamic target\n      reason: `Lambda function ${func.functionName} has high concurrency (${func.currentConcurrency}) relative to average invocations (${func.averageInvocations}).`\n    });\n  }\n}\n\nreturn [{ json: { scalingActions: potentialScalingActions, analysisTimestamp: new Date().toISOString() } }];\n'''"
+      },
+      "type": "n8n-nodes-base.function",
+      "position": [
+        480,
+        208
+      ],
+      "name": "Decide Scaling Actions",
+      "id": "generated-4bc5e4a9-d00f-428f-9d1d-f955d12d564b"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Hourly/Daily Cost Check": {
+      "main": [
+        [
+          {
+            "node": "Fetch AWS Cost Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch AWS Cost Data": {
+      "main": [
+        [
+          {
+            "node": "Analyze Cost & Set Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Cost & Set Alerts": {
+      "main": [
+        [
+          {
+            "node": "Are There Alerts?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Decide Scaling Actions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Are There Alerts?": {
+      "main": [
+        [
+          {
+            "node": "Send Cost Alert to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Workflow Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Cost Alert to Slack": {
+      "main": [
+        [
+          {
+            "node": "Log Workflow Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide Scaling Actions": {
+      "main": [
+        [
+          {
+            "node": "Log Workflow Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0ca874ea-eee9-4eac-ac2b-c0312582bb70",
+  "meta": {
+    "instanceId": "a3b813c8d564d3dc99ad9930918dcccf3df5b820d9834820e19c28b0590759bb"
+  },
+  "id": "ohCTFiWarhaxTvYS",
+  "tags": []
+}

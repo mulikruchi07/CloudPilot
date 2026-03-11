@@ -1,0 +1,33 @@
+{
+  "name": "cloudpilot",
+  "version": "2.0.0",
+  "type": "module",
+  "description": "SaaS automation dashboard controlling n8n workflows with Supabase",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "demo": "cross-env DEMO_MODE=true node server.js",
+    "demo:watch": "cross-env DEMO_MODE=true nodemon server.js",
+    "gen-key": "node scripts/generate-encryption-key.js",
+    "seed": "node scripts/seed-templates.js",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": ["automation", "n8n", "workflow", "saas", "cloud", "supabase"],
+  "author": "Siddhi",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "cors": "^2.8.5",
+    "cross-env": "^7.0.3",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

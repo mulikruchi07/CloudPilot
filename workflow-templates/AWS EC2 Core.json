@@ -1,0 +1,1844 @@
+{
+  "name": "AWS EC2 Core",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\", [\"SUBJECT\", \"EC2\"]]"
+        }
+      },
+      "id": "c2f7780f-c3fe-417b-b282-0c0e43d07d04",
+      "name": "1. Get Email Request",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        -784,
+        1568
+      ],
+      "credentials": {
+        "imap": {
+          "id": "4LROXIHnV4ZtXPW5",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($json.textPlain || \"\").toLowerCase();\n\nlet service = \"ec2\";\nlet region = \"ap-south-1\";\nlet operation = null;\nlet instanceId = null;\n\nif (body.includes(\"list\")) {\n  operation = \"list_instances\";\n} else if (body.includes(\"status\")) {\n  operation = \"get_status\";\n} else if (body.includes(\"start\")) {\n  operation = \"start\";\n} else if (body.includes(\"stop\") || body.includes(\"shut\")) {\n  operation = \"stop\";\n}\n\nif (body.includes(\"mumbai\") || body.includes(\"ap-south-1\")) {\n  region = \"ap-south-1\";\n} else if (body.includes(\"us-east-1\") || body.includes(\"virginia\")) {\n  region = \"us-east-1\";\n}\n\nconst idMatch = body.match(/i-[a-z0-9]{8,17}/);\nif (idMatch) {\n  instanceId = idMatch[0];\n}\n\nreturn [{ json: { service, operation, region, instanceId } }];"
+      },
+      "id": "b62a4c8d-0af5-43ea-8bde-53ba1d8a6f92",
+      "name": "2. Command Parser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -544,
+        1568
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.operation }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "list_instances"
+            },
+            {
+              "value2": "=stop",
+              "output": 3
+            },
+            {
+              "value2": "start",
+              "output": 2
+            },
+            {
+              "value2": "get_status",
+              "output": 1
+            }
+          ]
+        }
+      },
+      "id": "3b34ad52-4b1f-4d7e-8249-0aefca03bbd3",
+      "name": "3. EC2 Op Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        -320,
+        1536
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://ec2.{{$json.region}}.amazonaws.com",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "DescribeInstances"
+            },
+            {
+              "name": "Version",
+              "value": "2016-11-15"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0c1b03d6-8b16-4518-a969-7a89c28981aa",
+      "name": "4A. DescribeInstances",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -96,
+        1392
+      ],
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "2f525d8f-eb7f-4a92-8b09-e5bf73b408d7",
+      "name": "5A. Parse Describe XML",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        128,
+        1392
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $json;\n\n// helper to normalize array vs single object\nfunction arr(x) {\n  return Array.isArray(x) ? x : (x ? [x] : []);\n}\n\nconst reservations = arr(root.DescribeInstancesResponse?.reservationSet?.item);\nconst out = [];\n\nfor (const r of reservations) {\n  const instances = arr(r.instancesSet?.item);\n\n  for (const i of instances) {\n    const id = i.instanceId || \"\";\n    const type = i.instanceType || \"\";\n    const state = i.instanceState?.name || \"\";\n    const az = i.placement?.availabilityZone || \"\";\n    const dns = i.dnsName || \"\";\n    const publicDns = i.publicIpDnsNameOptions?.publicIpv4DnsName || \"\";\n\n    // tags handling\n    const tags = arr(i.tagSet?.item);\n    let name = \"\";\n    for (const t of tags) {\n      if (t.key === \"Name\") {\n        name = t.value;\n        break;\n      }\n    }\n\n    out.push({ id, type, state, az, dns, publicDns, name });\n  }\n}\n\nreturn out.length ? out : [{ note: \"No instances found.\" }];\n"
+      },
+      "id": "157f6dcc-7876-49bb-be3c-60c7632366da",
+      "name": "6A. Normalize Instances",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        1392
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://ec2.{{$json.region}}.amazonaws.com",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "StartInstances"
+            },
+            {
+              "name": "Version",
+              "value": "2016-11-15"
+            },
+            {
+              "name": "InstanceId.1",
+              "value": "={{ $json.instanceId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f2c12536-aa9e-4f4b-aa20-a576c8bcdd61",
+      "name": "4B. StartInstances",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -96,
+        1584
+      ],
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "3e8584c4-5f97-4ed7-9c80-1ce953742ad1",
+      "name": "5B. Parse Start XML",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        128,
+        1584
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = [];\n\n// Navigate safely into StartInstancesResponse\nconst resp = $json.StartInstancesResponse;\nif (resp && resp.instancesSet && resp.instancesSet.item) {\n  const raw = resp.instancesSet.item;\n  const arr = Array.isArray(raw) ? raw : [raw];\n\n  for (const i of arr) {\n    items.push({\n      id: i.instanceId || \"\",\n      previous: i.previousState?.name || \"\",\n      current: i.currentState?.name || \"\",\n      operation: \"start\"\n    });\n  }\n}\n\n// If nothing found, still return a fallback\nif (items.length === 0) {\n  items.push({\n    note: \"No start information found in response\",\n    operation: \"start\"\n  });\n}\n\nreturn items;\n"
+      },
+      "id": "d1f822d2-814f-4314-a2e2-801122dd4e12",
+      "name": "6B. Summarize Start",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        1584
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://ec2.{{$json.region}}.amazonaws.com ",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "StopInstances"
+            },
+            {
+              "name": "Version",
+              "value": "2016-11-15"
+            },
+            {
+              "name": "InstanceId.1",
+              "value": "={{ $json.instanceId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3e3ba6f7-b87b-420b-8fa4-c5c4116cd81a",
+      "name": "4C. StopInstances",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -96,
+        1776
+      ],
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "84bb69c7-2fda-4bde-9f6e-a4bcebc07b50",
+      "name": "5C. Parse Stop XML",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        128,
+        1776
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = [];\n\n// Navigate safely into StopInstancesResponse\nconst resp = $json.StopInstancesResponse;\nif (resp && resp.instancesSet && resp.instancesSet.item) {\n  const raw = resp.instancesSet.item;\n  const arr = Array.isArray(raw) ? raw : [raw];\n\n  for (const i of arr) {\n    items.push({\n      id: i.instanceId || \"\",\n      previous: i.previousState?.name || \"\",\n      current: i.currentState?.name || \"\",\n      operation: \"stop\"\n    });\n  }\n}\n\n// If nothing found, still return a failure note\nif (items.length === 0) {\n  items.push({\n    note: \"No stop information found in response\",\n    operation: \"stop\"\n  });\n}\n\nreturn items;\n"
+      },
+      "id": "8ac3c1ae-5b6f-4241-9917-5828a502cdb5",
+      "name": "6C. Summarize Stop",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        1776
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const op = $json.operation || \"list_instances\";\nconst rows = $items().map(i => i.json);\n\nlet html = \"\";\n\nif (op === 'list_instances' || op === 'get_status') {\n  html += '<h2>EC2 Instance Details</h2>';\n  html += '<table border=\"1\" cellspacing=\"0\" cellpadding=\"6\" style=\"border-collapse:collapse;\">';\n  html += '<tr><th>ID</th><th>Type</th><th>State</th><th>Name</th><th>AZ</th><th>DNS</th><th>Public DNS</th></tr>';\n  \n  for (const r of rows) {\n    if (r.id) {\n      html += `<tr>\n        <td>${r.id}</td>\n        <td>${r.type}</td>\n        <td>${r.state}</td>\n        <td>${r.name || '-'}</td>\n        <td>${r.az || '-'}</td>\n        <td>${r.dns || '-'}</td>\n        <td>${r.publicDns || '-'}</td>\n      </tr>`;\n    }\n  }\n  html += '</table>';\n} \nelse if (op === 'start' || op === 'stop') {\n  html += `<h2>EC2 ${op.toUpperCase()} Results</h2>`;\n  html += '<ul>';\n  for (const r of rows) {\n    let msg = \"\";\n    if (op === 'start') {\n      if (r.previous === \"stopped\" && (r.current === \"pending\" || r.current === \"running\")) {\n        msg = `Instance ${r.id} is starting up `;\n      } else if (r.previous === \"running\" && r.current === \"running\") {\n        msg = `Instance ${r.id} is already running `;\n      } else {\n        msg = `Instance ${r.id} state: ${r.previous} → ${r.current}`;\n      }\n    }\n    if (op === 'stop') {\n      if (r.previous === \"running\" && (r.current === \"stopping\" || r.current === \"stopped\")) {\n        msg = `Instance ${r.id} is shutting down `;\n      } else if (r.previous === \"stopped\" && r.current === \"stopped\") {\n        msg = `Instance ${r.id} is already stopped `;\n      } else {\n        msg = `Instance ${r.id} state: ${r.previous} → ${r.current}`;\n      }\n    }\n    html += `<li>${msg}</li>`;\n  }\n  html += '</ul>';\n} \nelse {\n  html = `<pre>${JSON.stringify(rows, null, 2)}</pre>`;\n}\n\nreturn {\n  json: {\n    subject: `EC2 ${op} Result`,\n    body: html\n  }\n};\n"
+      },
+      "id": "410d4b95-6407-4b41-935f-e4f68d49b504",
+      "name": "7. Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        576,
+        1584
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $('1. Get Email Request').item.json.to }}",
+        "toEmail": "={{ $('1. Get Email Request').item.json.from }}",
+        "subject": "={{$json.subject}}",
+        "emailFormat": "html",
+        "html": "={{$json.body}}\n",
+        "options": {}
+      },
+      "id": "b2ac230c-f743-4fb0-8bd1-6077a7c9d769",
+      "name": "8A. Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        800,
+        1584
+      ],
+      "webhookId": "59682916-3ae0-4f34-ab4d-90a1cc30ce6e",
+      "credentials": {
+        "smtp": {
+          "id": "RPyau0JtylKXWnSr",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#aws-notify",
+        "text": "={{$json.body}}",
+        "otherOptions": {},
+        "attachments": []
+      },
+      "id": "6c3b5d34-88bd-4963-90d1-e99813c932a7",
+      "name": "8B. Send Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [
+        800,
+        1776
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://ec2.{{$json.region}}.amazonaws.com",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "RebootInstances"
+            },
+            {
+              "name": "Version",
+              "value": "2016-11-15"
+            },
+            {
+              "name": "InstanceId.1",
+              "value": "={{ $json.instanceId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "71f801d1-5ac3-435c-b714-cb4afa4e6881",
+      "name": "4D. RebootInstances",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2128,
+        1824
+      ],
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "e9fd2d7b-16f7-4a40-82c6-60cdc1cd6396",
+      "name": "5D. Parse Reboot XML",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        2368,
+        1824
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = [];\nconst resp = $json.RebootInstancesResponse || $json;\n// Reboot response often doesn't return instancesSet; we confirm success via requestId\nif (resp && resp.requestId) {\n  items.push({ note: 'Reboot requested', operation: 'reboot', requestId: resp.requestId });\n} else {\n  items.push({ note: 'Reboot response not recognized', operation: 'reboot' });\n}\nreturn items;\n"
+      },
+      "id": "36b83bb1-0b23-42ad-903f-2698ee1df788",
+      "name": "6D. Summarize Reboot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        1824
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://ec2.{{$json.region}}.amazonaws.com",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "TerminateInstances"
+            },
+            {
+              "name": "Version",
+              "value": "2016-11-15"
+            },
+            {
+              "name": "InstanceId.1",
+              "value": "={{ $json.instanceId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b72ebe88-5849-44f8-896b-ec32dfef362f",
+      "name": "4E. TerminateInstances",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2128,
+        1984
+      ],
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "e538b2d0-d651-4b71-adde-cf142e42cdc8",
+      "name": "5E. Parse Terminate XML",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        2368,
+        1984
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = [];\nconst resp = $json.TerminateInstancesResponse;\nif (resp && resp.instancesSet && resp.instancesSet.item) {\n  const raw = resp.instancesSet.item;\n  const arr = Array.isArray(raw) ? raw : [raw];\n  for (const i of arr) {\n    items.push({ id: i.instanceId || '', previous: i.previousState?.name || '', current: i.currentState?.name || '', operation: 'terminate' });\n  }\n} else if (resp && resp.terminatingInstances) {\n  const raw = resp.terminatingInstances.item;\n  const arr = Array.isArray(raw) ? raw : [raw];\n  for (const i of arr) {\n    items.push({ id: i.instanceId?.['#text'] || '', previous: i.previousState?.name?.['#text'] || '', current: i.currentState?.name?.['#text'] || '', operation: 'terminate' });\n  }\n} else if (resp && resp.requestId) {\n  items.push({ note: 'Terminate requested', operation: 'terminate', requestId: resp.requestId });\n} else {\n  items.push({ note: 'No terminate info returned', operation: 'terminate' });\n}\nreturn items;\n"
+      },
+      "id": "e152529e-9bba-4e14-81a7-6c7a46194170",
+      "name": "6E. Summarize Terminate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        1984
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://ec2.{{$json.region}}.amazonaws.com",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "CreateTags"
+            },
+            {
+              "name": "Version",
+              "value": "2016-11-15"
+            },
+            {
+              "name": "ResourceId.1",
+              "value": "={{ Array.isArray($json.instanceId) ? $json.instanceId[0] : $json.instanceId }}"
+            },
+            {
+              "name": "Tag.1.Key",
+              "value": "={{ $json.extra?.tagKey }}"
+            },
+            {
+              "name": "Tag.1.Value",
+              "value": "={{ $json.extra?.tagValue }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bd3eeb67-60e7-4aa4-bdc5-f2c299acb790",
+      "name": "4F. CreateTags",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2128,
+        2144
+      ],
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "1f5502b6-3a5c-4f22-b727-cd24af6eb054",
+      "name": "5F. Parse CreateTags XML",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        2368,
+        2144
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $json.CreateTagsResponse || $json;\nif (resp && resp.requestId) {\n  return [{ json: { note: `Tagged ${ Array.isArray($json.instanceId) ? $json.instanceId.join(',') : $json.instanceId } with ${$json.extra?.tagKey}=${$json.extra?.tagValue}`, operation: 'create_tag' } }];\n}\nreturn [{ json: { note: 'Tagging response not recognized', operation: 'create_tag' } }];\n"
+      },
+      "id": "4513aa3f-fcdd-4fbc-b381-c93f1a533b0a",
+      "name": "6F. Summarize CreateTags",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        2144
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://ec2.{{$json.region}}.amazonaws.com",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "DeleteTags"
+            },
+            {
+              "name": "Version",
+              "value": "2016-11-15"
+            },
+            {
+              "name": "ResourceId.1",
+              "value": "={{ Array.isArray($json.instanceId) ? $json.instanceId[0] : $json.instanceId }}"
+            },
+            {
+              "name": "Tag.1.Key",
+              "value": "={{ $json.extra?.tagKey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "59c29815-9ea3-45fe-857f-9fab72e4b795",
+      "name": "4G. DeleteTags",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2128,
+        2304
+      ],
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "6c4e0f5a-6685-4beb-beb5-9467ef912e7c",
+      "name": "5G. Parse DeleteTags XML",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        2368,
+        2304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $json.DeleteTagsResponse || $json;\nif (resp && resp.requestId) {\n  return [{ json: { note: `Removed tag ${$json.extra?.tagKey} from ${ Array.isArray($json.instanceId) ? $json.instanceId.join(',') : $json.instanceId }`, operation: 'delete_tag' } }];\n}\nreturn [{ json: { note: 'Delete tag response not recognized', operation: 'delete_tag' } }];\n"
+      },
+      "id": "65a6b28d-7274-4ad2-acb7-9bffb6781174",
+      "name": "6G. Summarize DeleteTags",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        2304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://ec2.{{$json.region}}.amazonaws.com",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "DescribeInstanceStatus"
+            },
+            {
+              "name": "Version",
+              "value": "2016-11-15"
+            },
+            {
+              "name": "InstanceId.1",
+              "value": "={{ $json.instanceId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3f9d94bc-d87a-4537-8260-0b42ed13a86b",
+      "name": "4H. DescribeInstanceStatus",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2128,
+        2464
+      ],
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "11a908db-cd29-4291-8799-d658e062c134",
+      "name": "5H. Parse Status XML",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        2368,
+        2464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $json;\nfunction arr(x){return Array.isArray(x)?x:(x?[x]:[]);}const statuses = arr(root.DescribeInstanceStatusResponse?.instanceStatusSet?.item);const out=[];for(const s of statuses){out.push({ instanceId: s.instanceId || '', systemStatus: s.systemStatus?.status || '', instanceStatus: s.instanceStatus?.status || '', details: s.instanceStatus?.details || '', operation: 'health_check' });}return out.length?out:[{note:'No status found', operation:'health_check'}];"
+      },
+      "id": "b7b363d3-bbe4-4d67-9392-519f37dd5608",
+      "name": "6H. Normalize Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        2464
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://ec2.{{$json.region}}.amazonaws.com",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "GetConsoleOutput"
+            },
+            {
+              "name": "Version",
+              "value": "2016-11-15"
+            },
+            {
+              "name": "InstanceId",
+              "value": "={{ $json.instanceId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5be160a3-2a03-45ef-8d26-f0a8ea4853c8",
+      "name": "4I. GetConsoleOutput",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2128,
+        2624
+      ],
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "b1435a22-6bda-485f-b4d5-e4877894d070",
+      "name": "5I. Parse Console XML",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        2368,
+        2624
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $json.GetConsoleOutputResponse || $json;const out = []; if (resp && resp.instanceId) { out.push({ instanceId: resp.instanceId, output: resp.output || resp.consoleOutput || '', operation: 'console_output' }); } else if (resp && resp.output) { out.push({ instanceId: $json.instanceId || '', output: resp.output, operation: 'console_output' }); } else { out.push({ note: 'No console output found', operation: 'console_output' }); } return out;"
+      },
+      "id": "944148b0-ec47-433a-9d69-1c5fc496a35a",
+      "name": "6I. Normalize Console",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        2624
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://ec2.{{$json.region}}.amazonaws.com",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "AssociateAddress"
+            },
+            {
+              "name": "Version",
+              "value": "2016-11-15"
+            },
+            {
+              "name": "InstanceId",
+              "value": "={{ $json.instanceId }}"
+            },
+            {
+              "name": "PublicIp",
+              "value": "={{ $json.extra?.publicIp }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c5e49416-661e-4e84-8943-18d356a66cf3",
+      "name": "4J. AssociateAddress",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2128,
+        2784
+      ],
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "731d9ba2-33df-43d0-b5f6-0a1736bf9876",
+      "name": "5J. Parse Associate XML",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        2368,
+        2784
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $json.AssociateAddressResponse || $json; if (resp && resp.return === 'true') { return [{ json: { note: `Associated IP ${$json.extra?.publicIp} to ${ Array.isArray($json.instanceId) ? $json.instanceId.join(',') : $json.instanceId }`, operation: 'associate_address' } }]; } return [{ json: { note: 'AssociateAddress not confirmed', operation: 'associate_address' } }];"
+      },
+      "id": "ccc95fbd-20dc-4931-8ae7-52d2f2886327",
+      "name": "6J. Summarize Associate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        2784
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://ec2.{{$json.region}}.amazonaws.com",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "CreateImage"
+            },
+            {
+              "name": "Version",
+              "value": "2016-11-15"
+            },
+            {
+              "name": "InstanceId",
+              "value": "={{ $json.instanceId }}"
+            },
+            {
+              "name": "Name",
+              "value": "={{ $json.extra?.amiName || (`ami-from-${ (Array.isArray($json.instanceId) ? $json.instanceId[0] : $json.instanceId) }-${$now.format('YYYYMMDDHHmm')}`) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "48e718d1-cd3a-478d-b041-1ee9d4ab37a4",
+      "name": "4K. CreateImage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2128,
+        2944
+      ],
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "c63213a3-d1f4-4b26-aefd-2a51b6b81faf",
+      "name": "5K. Parse CreateImage XML",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        2368,
+        2944
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $json.CreateImageResponse || $json; if (resp && resp.imageId) { return [{ json: { note: `Created AMI ${resp.imageId}`, imageId: resp.imageId, operation: 'create_image' } }]; } if (resp && resp.requestId) { return [{ json: { note: 'CreateImage requested', requestId: resp.requestId, operation: 'create_image' } }]; } return [{ json: { note: 'CreateImage response not recognized', operation: 'create_image' } }];"
+      },
+      "id": "8302577a-41dc-45c6-8b01-176c6ad09879",
+      "name": "6K. Summarize CreateImage",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        2944
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\", [\"SUBJECT\", \"EC2\"]]"
+        }
+      },
+      "id": "56c446c7-45d1-4e8b-893d-09b3cbfa2d39",
+      "name": "1. Get Email Request1",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        2032
+      ],
+      "credentials": {
+        "imap": {
+          "id": "4LROXIHnV4ZtXPW5",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($json.textPlain || \"\").toLowerCase();\n\nlet service = \"ec2\";\nlet region = \"ap-south-1\";\nlet operation = null;\nlet instanceId = null;\nlet extra = null;\n\n// Basic intent detection (casual language)\nif (body.includes(\"list\") || body.includes(\"show me my instances\") || body.includes(\"what instances\")) {\n  operation = \"list_instances\";\n} else if (body.includes(\"status\") || body.includes(\"what is the status\") || body.includes(\"what's the status\")) {\n  operation = \"get_status\";\n} else if (body.includes(\"start\") || body.includes(\"boot\")) {\n  operation = \"start\";\n} else if (body.includes(\"stop\") || body.includes(\"shut\") || body.includes(\"shutdown\")) {\n  operation = \"stop\";\n} else if (body.includes(\"reboot\") || body.includes(\"restart\")) {\n  operation = \"reboot\";\n} else if (body.includes(\"terminate\") || (body.includes(\"delete instance\") && body.includes(\"confirm\"))) {\n  operation = \"terminate\";\n} else if (body.includes(\"tag \") || body.includes(\"add tag\") || body.includes(\"set tag\")) {\n  operation = \"create_tag\";\n} else if (body.includes(\"remove tag\") || body.includes(\"delete tag\") || body.includes(\"untag\")) {\n  operation = \"delete_tag\";\n} else if (body.includes(\"health\") || body.includes(\"check health\") || body.includes(\"describeinstancestatus\")) {\n  operation = \"health_check\";\n} else if (body.includes(\"console\") || body.includes(\"console output\") || body.includes(\"getconsoleoutput\")) {\n  operation = \"console_output\";\n} else if (body.includes(\"associate ip\") || body.includes(\"associate address\") || body.includes(\"assign elastic ip\") ) {\n  operation = \"associate_address\";\n} else if (body.includes(\"disassociate ip\") || body.includes(\"release address\") ) {\n  operation = \"disassociate_address\";\n} else if (body.includes(\"create ami\") || body.includes(\"create image\") || body.includes(\"create_image\") ) {\n  operation = \"create_image\";\n} else if (body.includes(\"snapshot\") || body.includes(\"create snapshot\")) {\n  operation = \"create_snapshot\";\n}\n\n// region detection\nif (body.includes(\"mumbai\") || body.includes(\"ap-south-1\")) {\n  region = \"ap-south-1\";\n} else if (body.includes(\"us-east\") || body.includes(\"virginia\") || body.includes(\"us-east-1\")) {\n  region = \"us-east-1\";\n} else if (body.includes(\"eu-west-1\") || body.includes(\"ireland\")) {\n  region = \"eu-west-1\";\n}\n\n// instance id detection (handles multiple ids comma separated)\nconst ids = body.match(/i-[a-z0-9]{8,17}/g);\nif (ids && ids.length) {\n  instanceId = ids.length === 1 ? ids[0] : ids; // can be array\n}\n\n// tag key/value detection (simple: key=value or key: value)\nconst tagMatch = body.match(/tag\\s+(\\w+)[=:]\\s*([\\w-]+)/i);\nif (tagMatch) {\n  extra = { tagKey: tagMatch[1], tagValue: tagMatch[2] };\n}\n\n// AMI name detection\nconst amiMatch = body.match(/ami name[=:]?\\s*([\\w- ]+)/i);\nif (amiMatch) {\n  extra = extra || {};\n  extra.amiName = amiMatch[1].trim().replace(/\\s+/g, '-');\n}\n\n// Elastic IP detection (simple IPv4 or allocation-id placeholder)\nconst ipMatch = body.match(/(\\d{1,3}(?:\\.\\d{1,3}){3})/);\nif (ipMatch) {\n  extra = extra || {};\n  extra.publicIp = ipMatch[1];\n}\n\nreturn [{ json: { service, operation, region, instanceId, extra } }];"
+      },
+      "id": "58e6a02d-3834-48e8-ae33-1b9e323a6066",
+      "name": "2. Command Parser1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1456,
+        2032
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.operation }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "list_instances"
+            },
+            {
+              "value2": "get_status",
+              "output": 1
+            },
+            {
+              "value2": "start",
+              "output": 2
+            },
+            {
+              "value2": "stop",
+              "output": 3
+            },
+            {
+              "value2": "reboot",
+              "output": 3
+            },
+            {
+              "value2": "terminate",
+              "output": 3
+            },
+            {
+              "value2": "create_tag",
+              "output": 3
+            },
+            {
+              "value2": "delete_tag",
+              "output": 3
+            },
+            {
+              "value2": "health_check",
+              "output": 3
+            },
+            {
+              "value2": "console_output",
+              "output": 3
+            },
+            {
+              "value2": "associate_address",
+              "output": 3
+            },
+            {
+              "value2": "create_image",
+              "output": 3
+            }
+          ]
+        }
+      },
+      "id": "6cd0b1ce-e1ba-4f03-800f-72ae255c791d",
+      "name": "3. EC2 Op Switch1",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        2000
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://ec2.{{$json.region}}.amazonaws.com",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "DescribeInstances"
+            },
+            {
+              "name": "Version",
+              "value": "2016-11-15"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3c70d968-5b6c-43a7-9d80-5a1ac9466dc9",
+      "name": "4A. DescribeInstances1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2128,
+        1344
+      ],
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "1855729c-6c47-437d-884a-ccee0cc47a40",
+      "name": "5A. Parse Describe XML1",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        2368,
+        1344
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $json;\n\n// helper to normalize array vs single object\nfunction arr(x) {\n  return Array.isArray(x) ? x : (x ? [x] : []);\n}\n\nconst reservations = arr(root.DescribeInstancesResponse?.reservationSet?.item);\nconst out = [];\n\nfor (const r of reservations) {\n  const instances = arr(r.instancesSet?.item);\n\n  for (const i of instances) {\n    const id = i.instanceId || \"\";\n    const type = i.instanceType || \"\";\n    const state = i.instanceState?.name || \"\";\n    const az = i.placement?.availabilityZone || \"\";\n    const dns = i.dnsName || \"\";\n    const publicDns = i.publicIpDnsNameOptions?.publicIpv4DnsName || \"\";\n\n    // tags handling\n    const tags = arr(i.tagSet?.item);\n    let name = \"\";\n    for (const t of tags) {\n      if (t.key === \"Name\") {\n        name = t.value;\n        break;\n      }\n    }\n\n    out.push({ id, type, state, az, dns, publicDns, name, operation: $json.operation || 'list_instances' });\n  }\n}\n\nreturn out.length ? out : [{ note: \"No instances found.\", operation: $json.operation || 'list_instances' }];\n"
+      },
+      "id": "8994777b-a223-4a91-aff6-c27dd110cb89",
+      "name": "6A. Normalize Instances1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        1344
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://ec2.{{$json.region}}.amazonaws.com",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "StartInstances"
+            },
+            {
+              "name": "Version",
+              "value": "2016-11-15"
+            },
+            {
+              "name": "InstanceId.1",
+              "value": "={{ $json.instanceId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "99006001-03bf-41c1-bfff-9fe804e30a6b",
+      "name": "4B. StartInstances1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2128,
+        1504
+      ],
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "89248627-92e8-41c2-ac99-bff755aa5e49",
+      "name": "5B. Parse Start XML1",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        2368,
+        1504
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = [];\n\n// Navigate safely into StartInstancesResponse\nconst resp = $json.StartInstancesResponse;\nif (resp && resp.instancesSet && resp.instancesSet.item) {\n  const raw = resp.instancesSet.item;\n  const arr = Array.isArray(raw) ? raw : [raw];\n\n  for (const i of arr) {\n    items.push({\n      id: i.instanceId || \"\",\n      previous: i.previousState?.name || \"\",\n      current: i.currentState?.name || \"\",\n      operation: \"start\"\n    });\n  }\n}\n\n// If nothing found, still return a fallback\nif (items.length === 0) {\n  items.push({\n    note: \"No start information found in response\",\n    operation: \"start\"\n  });\n}\n\nreturn items;\n"
+      },
+      "id": "638c4dbf-5a76-4387-b4de-182a7f232561",
+      "name": "6B. Summarize Start1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        1504
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://ec2.{{$json.region}}.amazonaws.com",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Action",
+              "value": "StopInstances"
+            },
+            {
+              "name": "Version",
+              "value": "2016-11-15"
+            },
+            {
+              "name": "n8ntest",
+              "value": "={{ $json.instanceId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5f6ba974-9f05-4fff-8b84-66adad84089d",
+      "name": "4C. StopInstances1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2128,
+        1664
+      ],
+      "credentials": {
+        "aws": {
+          "id": "IT7149J3HnVooK6f",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "e94782a5-7457-4453-905b-83408c4befe8",
+      "name": "5C. Parse Stop XML1",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        2368,
+        1664
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = [];\n\n// Navigate safely into StopInstancesResponse\nconst resp = $json.StopInstancesResponse;\nif (resp && resp.instancesSet && resp.instancesSet.item) {\n  const raw = resp.instancesSet.item;\n  const arr = Array.isArray(raw) ? raw : [raw];\n\n  for (const i of arr) {\n    items.push({\n      id: i.instanceId || \"\",\n      previous: i.previousState?.name || \"\",\n      current: i.currentState?.name || \"\",\n      operation: \"stop\"\n    });\n  }\n}\n\n// If nothing found, still return a failure note\nif (items.length === 0) {\n  items.push({\n    note: \"No stop information found in response\",\n    operation: \"stop\"\n  });\n}\n\nreturn items;\n"
+      },
+      "id": "3cddd79c-905a-4eff-b8ef-727a79de1110",
+      "name": "6C. Summarize Stop1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        1664
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const op = $json.operation || ($items(0)[0] && $items(0)[0].json.operation) || 'list_instances';\nconst rows = $items().map(i => i.json);\n\nlet html = '';\n\nif (op === 'list_instances' || op === 'get_status') {\n  html += '<h2>EC2 Instance Details</h2>';\n  html += '<table border=\"1\" cellspacing=\"0\" cellpadding=\"6\" style=\"border-collapse:collapse;\">';\n  html += '<tr><th>ID</th><th>Type</th><th>State</th><th>Name</th><th>AZ</th><th>DNS</th><th>Public DNS</th></tr>';\n  for (const r of rows) {\n    if (r.id) {\n      html += `<tr>\\n        <td>${r.id}</td>\\n        <td>${r.type}</td>\\n        <td>${r.state}</td>\\n        <td>${r.name || '-'}</td>\\n        <td>${r.az || '-'}</td>\\n        <td>${r.dns || '-'}</td>\\n        <td>${r.publicDns || '-'}</td>\\n      </tr>`;\n    }\n  }\n  html += '</table>';\n} else if (op === 'start' || op === 'stop' || op === 'reboot' || op === 'terminate') {\n  // casual human-friendly lines (no emoji)\n  html += `<h2>EC2 ${op.toUpperCase()} Results</h2>`;\n  html += '<ul>';\n  for (const r of rows) {\n    let msg = '';\n    if (op === 'start') {\n      if (r.previous === 'stopped' && (r.current === 'pending' || r.current === 'running')) {\n        msg = `I started instance ${r.id}. It was stopped and is now booting up.`;\n      } else if (r.previous === 'running' && r.current === 'running') {\n        msg = `Instance ${r.id} is already running.`;\n      } else {\n        msg = `Instance ${r.id} status changed: ${r.previous} → ${r.current}.`;\n      }\n    }\n    if (op === 'stop') {\n      if (r.previous === 'running' && (r.current === 'stopping' || r.current === 'stopped')) {\n        msg = `I stopped instance ${r.id}. It was running and is now shutting down.`;\n      } else if (r.previous === 'stopped' && r.current === 'stopped') {\n        msg = `Instance ${r.id} is already stopped.`;\n      } else {\n        msg = `Instance ${r.id} status changed: ${r.previous} → ${r.current}.`;\n      }\n    }\n    if (op === 'reboot') {\n      if (r.note) msg = `Reboot requested for ${r.requestId || r.id}.`; else msg = `Reboot requested for instance ${r.id}.`;\n    }\n    if (op === 'terminate') {\n      if (r.current === 'shutting-down' || r.current === 'terminated' || r.note === 'Terminate requested') {\n        msg = `Instance ${r.id} has been terminated or termination requested.`;\n      } else {\n        msg = `Instance ${r.id} termination result: ${r.previous} → ${r.current}.`;\n      }\n    }\n    html += `<li>${msg}</li>`;\n  }\n  html += '</ul>';\n}\nelse if (op === 'create_tag' || op === 'delete_tag') {\n  html += '<h2>Tag Update</h2>';\n  for (const r of rows) {\n    html += `<p>${r.note}</p>`;\n  }\n}\nelse if (op === 'health_check') {\n  html += '<h2>Instance Health Check</h2>';\n  html += '<table border=\"1\" cellspacing=\"0\" cellpadding=\"6\" style=\"border-collapse:collapse;\">';\n  html += '<tr><th>Instance ID</th><th>System Status</th><th>Instance Status</th></tr>';\n  for (const r of rows) {\n    if (r.instanceId) html += `<tr><td>${r.instanceId}</td><td>${r.systemStatus}</td><td>${r.instanceStatus}</td></tr>`;\n  }\n  html += '</table>';\n}\nelse if (op === 'console_output') {\n  html += '<h2>Console Output</h2>';\n  for (const r of rows) {\n    if (r.output) {\n      // Console output may be base64; present as-is\n      html += `<h3>${r.instanceId || ''}</h3><pre style=\"white-space:pre-wrap;\">${r.output}</pre>`;\n    } else {\n      html += `<p>${r.note || 'No console output available.'}</p>`;\n    }\n  }\n}\nelse if (op === 'associate_address') {\n  for (const r of rows) {\n    html += `<p>${r.note}</p>`;\n  }\n}\nelse if (op === 'create_image' || op === 'create_snapshot') {\n  for (const r of rows) html += `<p>${r.note || (r.imageId ? 'Created AMI ' + r.imageId : '')}</p>`;\n}\nelse {\n  html = `<pre>${JSON.stringify(rows, null, 2)}</pre>`;\n}\n\nreturn {\n  json: {\n    subject: `EC2 ${op} Result`,\n    body: html\n  }\n};"
+      },
+      "id": "afa62dda-c2fa-4c97-b9c3-c3a4257b8676",
+      "name": "7. Format Response1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2848,
+        2144
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $('1. Get Email Request1').item.json.to }}",
+        "toEmail": "={{ $('1. Get Email Request1').item.json.from }}",
+        "subject": "={{$json.subject}}",
+        "emailFormat": "html",
+        "html": "={{$json.body}}",
+        "options": {}
+      },
+      "id": "94024bab-3ecd-42e0-abbe-2e7e6819cbb5",
+      "name": "8A. Send Email1",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        3088,
+        2144
+      ],
+      "webhookId": "af22bfab-1472-4ac1-a17c-eafa6a0995bd",
+      "credentials": {
+        "smtp": {
+          "id": "RPyau0JtylKXWnSr",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#aws-notify",
+        "text": "={{$json.subject + '\\n\\n' + $json.body}}",
+        "otherOptions": {},
+        "attachments": []
+      },
+      "id": "831c1545-df5a-40d7-bbea-99b8693df3da",
+      "name": "8B. Send Slack1",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [
+        3088,
+        2304
+      ],
+      "disabled": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "1. Get Email Request": {
+      "main": [
+        [
+          {
+            "node": "2. Command Parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Command Parser": {
+      "main": [
+        [
+          {
+            "node": "3. EC2 Op Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. EC2 Op Switch": {
+      "main": [
+        [
+          {
+            "node": "4A. DescribeInstances",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "4A. DescribeInstances",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "4B. StartInstances",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "4C. StopInstances",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4A. DescribeInstances": {
+      "main": [
+        [
+          {
+            "node": "5A. Parse Describe XML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5A. Parse Describe XML": {
+      "main": [
+        [
+          {
+            "node": "6A. Normalize Instances",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6A. Normalize Instances": {
+      "main": [
+        [
+          {
+            "node": "7. Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4B. StartInstances": {
+      "main": [
+        [
+          {
+            "node": "5B. Parse Start XML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5B. Parse Start XML": {
+      "main": [
+        [
+          {
+            "node": "6B. Summarize Start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6B. Summarize Start": {
+      "main": [
+        [
+          {
+            "node": "7. Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4C. StopInstances": {
+      "main": [
+        [
+          {
+            "node": "5C. Parse Stop XML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5C. Parse Stop XML": {
+      "main": [
+        [
+          {
+            "node": "6C. Summarize Stop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6C. Summarize Stop": {
+      "main": [
+        [
+          {
+            "node": "7. Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Format Response": {
+      "main": [
+        [
+          {
+            "node": "8A. Send Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "8B. Send Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4D. RebootInstances": {
+      "main": [
+        [
+          {
+            "node": "5D. Parse Reboot XML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5D. Parse Reboot XML": {
+      "main": [
+        [
+          {
+            "node": "6D. Summarize Reboot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6D. Summarize Reboot": {
+      "main": [
+        [
+          {
+            "node": "7. Format Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4E. TerminateInstances": {
+      "main": [
+        [
+          {
+            "node": "5E. Parse Terminate XML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5E. Parse Terminate XML": {
+      "main": [
+        [
+          {
+            "node": "6E. Summarize Terminate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6E. Summarize Terminate": {
+      "main": [
+        [
+          {
+            "node": "7. Format Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4F. CreateTags": {
+      "main": [
+        [
+          {
+            "node": "5F. Parse CreateTags XML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5F. Parse CreateTags XML": {
+      "main": [
+        [
+          {
+            "node": "6F. Summarize CreateTags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6F. Summarize CreateTags": {
+      "main": [
+        [
+          {
+            "node": "7. Format Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4G. DeleteTags": {
+      "main": [
+        [
+          {
+            "node": "5G. Parse DeleteTags XML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5G. Parse DeleteTags XML": {
+      "main": [
+        [
+          {
+            "node": "6G. Summarize DeleteTags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6G. Summarize DeleteTags": {
+      "main": [
+        [
+          {
+            "node": "7. Format Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4H. DescribeInstanceStatus": {
+      "main": [
+        [
+          {
+            "node": "5H. Parse Status XML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5H. Parse Status XML": {
+      "main": [
+        [
+          {
+            "node": "6H. Normalize Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6H. Normalize Status": {
+      "main": [
+        [
+          {
+            "node": "7. Format Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4I. GetConsoleOutput": {
+      "main": [
+        [
+          {
+            "node": "5I. Parse Console XML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5I. Parse Console XML": {
+      "main": [
+        [
+          {
+            "node": "6I. Normalize Console",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6I. Normalize Console": {
+      "main": [
+        [
+          {
+            "node": "7. Format Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4J. AssociateAddress": {
+      "main": [
+        [
+          {
+            "node": "5J. Parse Associate XML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5J. Parse Associate XML": {
+      "main": [
+        [
+          {
+            "node": "6J. Summarize Associate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6J. Summarize Associate": {
+      "main": [
+        [
+          {
+            "node": "7. Format Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4K. CreateImage": {
+      "main": [
+        [
+          {
+            "node": "5K. Parse CreateImage XML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5K. Parse CreateImage XML": {
+      "main": [
+        [
+          {
+            "node": "6K. Summarize CreateImage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6K. Summarize CreateImage": {
+      "main": [
+        [
+          {
+            "node": "7. Format Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1. Get Email Request1": {
+      "main": [
+        [
+          {
+            "node": "2. Command Parser1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Command Parser1": {
+      "main": [
+        [
+          {
+            "node": "3. EC2 Op Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. EC2 Op Switch1": {
+      "main": [
+        [
+          {
+            "node": "4A. DescribeInstances1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "4A. DescribeInstances1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "4B. StartInstances1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "4C. StopInstances1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4A. DescribeInstances1": {
+      "main": [
+        [
+          {
+            "node": "5A. Parse Describe XML1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5A. Parse Describe XML1": {
+      "main": [
+        [
+          {
+            "node": "6A. Normalize Instances1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6A. Normalize Instances1": {
+      "main": [
+        [
+          {
+            "node": "7. Format Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4B. StartInstances1": {
+      "main": [
+        [
+          {
+            "node": "5B. Parse Start XML1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5B. Parse Start XML1": {
+      "main": [
+        [
+          {
+            "node": "6B. Summarize Start1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6B. Summarize Start1": {
+      "main": [
+        [
+          {
+            "node": "7. Format Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4C. StopInstances1": {
+      "main": [
+        [
+          {
+            "node": "5C. Parse Stop XML1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5C. Parse Stop XML1": {
+      "main": [
+        [
+          {
+            "node": "6C. Summarize Stop1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6C. Summarize Stop1": {
+      "main": [
+        [
+          {
+            "node": "7. Format Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Format Response1": {
+      "main": [
+        [
+          {
+            "node": "8A. Send Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e264d660-9d93-4cf5-8cf7-f59ec4ff013b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cf0830f74576d2a6e58a0e723cc09a2a46df5589d469e5bee438e5f4f03fbe6a"
+  },
+  "id": "JARykcKEUJv3aPa5",
+  "tags": []
+}
