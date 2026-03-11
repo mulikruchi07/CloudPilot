@@ -5,20 +5,34 @@ import { setPageHeader, setTopActions, showToast } from '../ui.js';
 // Hide stats + section header to give timeline full height
 function enterTimelineLayout() {
   document.body.classList.add('timeline-page');
+<<<<<<< HEAD
   const stats     = document.querySelector('.stats-grid');
   const secHeader = document.querySelector('.section-header');
   const grid      = document.getElementById('workflowsGrid');
   if (stats)     stats.style.display = 'none';
+=======
+  const stats = document.querySelector('.stats-grid');
+  const secHeader = document.querySelector('.section-header');
+  const grid = document.getElementById('workflowsGrid');
+  if (stats) stats.style.display = 'none';
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
   if (secHeader) secHeader.style.display = 'none';
   if (grid) { grid.style.display = 'block'; grid.style.overflow = 'hidden'; }
 }
 
 function exitTimelineLayout() {
   document.body.classList.remove('timeline-page');
+<<<<<<< HEAD
   const stats     = document.querySelector('.stats-grid');
   const secHeader = document.querySelector('.section-header');
   const grid      = document.getElementById('workflowsGrid');
   if (stats)     stats.style.display = '';
+=======
+  const stats = document.querySelector('.stats-grid');
+  const secHeader = document.querySelector('.section-header');
+  const grid = document.getElementById('workflowsGrid');
+  if (stats) stats.style.display = '';
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
   if (secHeader) secHeader.style.display = '';
   if (grid) { grid.style.display = ''; grid.style.overflow = ''; }
 }
@@ -40,7 +54,11 @@ export async function timelineView(params) {
   grid.innerHTML = `<div class="loading-card"><div class="spinner-small"></div><span>Loading executions…</span></div>`;
 
   try {
+<<<<<<< HEAD
     const data       = await api.getWorkflowHistory(workflowId);
+=======
+    const data = await api.getWorkflowHistory(workflowId);
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
     const executions = data?.data || data?.executions || [];
 
     if (!executions.length) {
@@ -67,8 +85,12 @@ export async function timelineView(params) {
         </div>
       </div>`;
 
+<<<<<<< HEAD
     // Auto-open the most recent execution
     const firstId = executions[0]?.id;
+=======
+    const firstId = executions[0]?.id || executions[0]?.n8n_execution_id;
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
     if (firstId) openExecDetail(firstId, executions[0]);
 
   } catch (err) {
@@ -77,15 +99,25 @@ export async function timelineView(params) {
       <div class="empty-state">
         <i class="fas fa-exclamation-triangle"></i>
         <h3>Failed to load history</h3>
+<<<<<<< HEAD
         <p>The automation service is temporarily unavailable. Please try again shortly.</p>
+=======
+        <p>${escapeHtml(err.message)}</p>
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
       </div>`;
   }
 }
 
 function buildHistoryRow(exec, num) {
+<<<<<<< HEAD
   const status   = execStatus(exec);
   const id       = exec.id || '';        // Always the CloudPilot UUID
   const start    = exec.startedAt || exec.started_at;
+=======
+  const status = execStatus(exec);
+  const id = exec.id || exec.n8n_execution_id || '';
+  const start = exec.startedAt || exec.started_at;
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
   const duration = getDuration(exec);
   return `
     <div class="exec-row exec-row--${status}" id="row-${escapeHtml(String(id))}"
@@ -96,7 +128,11 @@ function buildHistoryRow(exec, num) {
       <div class="exec-row-body">
         <div class="exec-row-title">Run #${num}</div>
         <div class="exec-row-meta">
+<<<<<<< HEAD
           ${start    ? `<span><i class="fas fa-clock"></i> ${formatDateTime(start)}</span>` : ''}
+=======
+          ${start ? `<span><i class="fas fa-clock"></i> ${formatDateTime(start)}</span>` : ''}
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
           ${duration ? `<span><i class="fas fa-stopwatch"></i> ${duration}</span>` : ''}
         </div>
       </div>
@@ -119,9 +155,15 @@ function openExecDetail(id, execMeta) {
     panel.innerHTML = `
       <div class="exec-detail-error">
         <i class="fas fa-exclamation-circle"></i>
+<<<<<<< HEAD
         <p>Node-level data is not available for this execution.</p>
         <p style="font-size:12px;color:var(--text-muted);margin-top:4px">
           Detailed data is available for executions triggered through CloudPilot.
+=======
+        <p>${escapeHtml(err.message)}</p>
+        <p style="font-size:12px;color:var(--text-muted);margin-top:4px">
+          Detailed node data is available for executions triggered through CloudPilot.
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
         </p>
       </div>`;
   });
@@ -145,9 +187,15 @@ function renderDetailPanel(panel, data, execMeta) {
         ${overallStatus.charAt(0).toUpperCase() + overallStatus.slice(1)}
       </div>
       <div class="exec-detail-times">
+<<<<<<< HEAD
         ${started_at  ? `<div class="exec-time-item"><span class="exec-time-label">Started</span><span class="exec-time-val">${formatDateTime(started_at)}</span></div>` : ''}
         ${finished_at ? `<div class="exec-time-item"><span class="exec-time-label">Finished</span><span class="exec-time-val">${formatDateTime(finished_at)}</span></div>` : ''}
         ${totalMs     ? `<div class="exec-time-item"><span class="exec-time-label">Duration</span><span class="exec-time-val exec-time-dur">${formatDuration(totalMs)}</span></div>` : ''}
+=======
+        ${started_at ? `<div class="exec-time-item"><span class="exec-time-label">Started</span><span class="exec-time-val">${formatDateTime(started_at)}</span></div>` : ''}
+        ${finished_at ? `<div class="exec-time-item"><span class="exec-time-label">Finished</span><span class="exec-time-val">${formatDateTime(finished_at)}</span></div>` : ''}
+        ${totalMs ? `<div class="exec-time-item"><span class="exec-time-label">Duration</span><span class="exec-time-val exec-time-dur">${formatDuration(totalMs)}</span></div>` : ''}
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
       </div>
     </div>
     ${timeline.length > 1 ? buildProgressBar(timeline) : ''}
@@ -159,10 +207,17 @@ function renderDetailPanel(panel, data, execMeta) {
 }
 
 function buildProgressBar(timeline) {
+<<<<<<< HEAD
   const total  = timeline.reduce((sum, n) => sum + (n.duration_ms || 0), 0);
   const colors = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#f43f5e'];
   const segments = timeline.map((node, i) => {
     const pct   = total > 0 ? Math.max(((node.duration_ms || 0) / total) * 100, 2) : (100 / timeline.length);
+=======
+  const total = timeline.reduce((sum, n) => sum + (n.duration_ms || 0), 0);
+  const colors = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#f43f5e'];
+  const segments = timeline.map((node, i) => {
+    const pct = total > 0 ? Math.max(((node.duration_ms || 0) / total) * 100, 2) : (100 / timeline.length);
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
     const color = node.status === 'failed' ? '#f43f5e' : colors[i % colors.length];
     return `<div class="prog-seg" style="width:${pct.toFixed(1)}%;background:${color}" title="${escapeHtml(node.node_name)}: ${formatDuration(node.duration_ms)}"></div>`;
   }).join('');
@@ -181,8 +236,13 @@ function buildProgressBar(timeline) {
 }
 
 function buildNodeCard(node, index, total) {
+<<<<<<< HEAD
   const isLast       = index === total - 1;
   const status       = node.status || 'success';
+=======
+  const isLast = index === total - 1;
+  const status = node.status || 'success';
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
   const outputSummary = buildOutputSummary(node.output_preview);
   return `
     <div class="node-card node-card--${status}">
@@ -250,6 +310,7 @@ function formatOutputValue(v) {
 function getNodeIcon(node) {
   const name = (node.node_name || '').toLowerCase();
   const type = (node.node_type || '').toLowerCase();
+<<<<<<< HEAD
   if (name.includes('email') || name.includes('mail'))       return 'envelope';
   if (name.includes('slack'))                                 return 'hashtag';
   if (name.includes('http') || name.includes('webhook'))     return 'globe';
@@ -262,6 +323,20 @@ function getNodeIcon(node) {
   if (name.includes('set') || name.includes('assign'))       return 'pen';
   if (name.includes('merge') || name.includes('join'))       return 'code-branch';
   if (name.includes('split') || name.includes('loop'))       return 'random';
+=======
+  if (name.includes('email') || name.includes('mail')) return 'envelope';
+  if (name.includes('slack')) return 'hashtag';
+  if (name.includes('http') || name.includes('webhook')) return 'globe';
+  if (name.includes('database') || name.includes('sql')) return 'database';
+  if (name.includes('s3') || name.includes('storage')) return 'cloud-upload-alt';
+  if (name.includes('schedule') || name.includes('cron')) return 'clock';
+  if (name.includes('filter') || name.includes('if')) return 'filter';
+  if (name.includes('code') || name.includes('function')) return 'code';
+  if (name.includes('start') || name.includes('trigger') || name.includes('manual') || type === 'trigger') return 'play-circle';
+  if (name.includes('set') || name.includes('assign')) return 'pen';
+  if (name.includes('merge') || name.includes('join')) return 'code-branch';
+  if (name.includes('split') || name.includes('loop')) return 'random';
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
   return 'circle-notch';
 }
 
@@ -273,7 +348,11 @@ export function showLiveRunPanel(workflowId, workflowName, cardEl) {
   if (existing) { existing.remove(); return; }
 
   const panel = document.createElement('div');
+<<<<<<< HEAD
   panel.id        = `live-panel-${workflowId}`;
+=======
+  panel.id = `live-panel-${workflowId}`;
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
   panel.className = 'live-run-panel';
   panel.innerHTML = `
     <div class="live-run-header">
@@ -288,7 +367,11 @@ export function showLiveRunPanel(workflowId, workflowName, cardEl) {
     <div class="live-run-steps" id="live-steps-${workflowId}">
       <div class="live-step live-step--pending">
         <div class="live-step-dot live-dot--spin"><i class="fas fa-circle-notch fa-spin"></i></div>
+<<<<<<< HEAD
         <div class="live-step-info"><div class="live-step-name">Connecting to automation engine…</div></div>
+=======
+        <div class="live-step-info"><div class="live-step-name">Sending request to n8n…</div></div>
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
       </div>
     </div>
     <div class="live-run-footer" id="live-footer-${workflowId}"></div>`;
@@ -302,8 +385,13 @@ export function showLiveRunPanel(workflowId, workflowName, cardEl) {
 // Main run entry point
 // ─────────────────────────────────────────────
 export async function runWithLivePanel(workflowId, workflowName, cardEl, wf = null) {
+<<<<<<< HEAD
   const panel   = showLiveRunPanel(workflowId, workflowName, cardEl);
   const stepsEl  = document.getElementById(`live-steps-${workflowId}`);
+=======
+  const panel = showLiveRunPanel(workflowId, workflowName, cardEl);
+  const stepsEl = document.getElementById(`live-steps-${workflowId}`);
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
   const footerEl = document.getElementById(`live-footer-${workflowId}`);
 
   // ── Local helpers ──
@@ -325,7 +413,11 @@ export async function runWithLivePanel(workflowId, workflowName, cardEl, wf = nu
 
   function updateLastStep(status, detail = '') {
     const steps = stepsEl.querySelectorAll('.live-step');
+<<<<<<< HEAD
     const last  = steps[steps.length - 1];
+=======
+    const last = steps[steps.length - 1];
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
     if (!last) return;
     last.className = `live-step live-step--${status}`;
     const dot = last.querySelector('.live-step-dot');
@@ -351,7 +443,11 @@ export async function runWithLivePanel(workflowId, workflowName, cardEl, wf = nu
       </div>`;
   }
 
+<<<<<<< HEAD
   function showRunError(message) {
+=======
+  function showRunError(message, hint = '') {
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
     footerEl.innerHTML = `
       <div class="live-result-bar live-result--err">
         <div style="flex:1">
@@ -359,12 +455,22 @@ export async function runWithLivePanel(workflowId, workflowName, cardEl, wf = nu
             <i class="fas fa-exclamation-triangle"></i> Execution failed
           </div>
           <div style="font-size:11px;color:#8a9bc0">${escapeHtml(message)}</div>
+<<<<<<< HEAD
         </div>
+=======
+          ${hint ? `<div style="font-size:11px;color:#5a6f8a;margin-top:4px"><i class="fas fa-info-circle"></i> ${escapeHtml(hint)}</div>` : ''}
+        </div>
+        <a href="http://localhost:5678/workflow/${workflowId}" target="_blank"
+           class="wf-btn secondary" style="font-size:11px;padding:5px 10px;text-decoration:none;white-space:nowrap">
+          <i class="fas fa-external-link-alt"></i> Open in n8n
+        </a>
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
       </div>`;
   }
 
   // ── Main flow ──
   try {
+<<<<<<< HEAD
     updateLastStep('success', 'Automation engine connected');
     await delay(300);
 
@@ -379,6 +485,22 @@ export async function runWithLivePanel(workflowId, workflowName, cardEl, wf = nu
 
     if (canPoll) {
       updateLastStep('success', 'Workflow dispatched');
+=======
+    updateLastStep('success', 'Connected to n8n');
+    await delay(300);
+
+    addStep('Triggering workflow execution…', 'running');
+    await delay(200);
+
+    const result = await api.runWorkflow(workflowId);
+    const execId = result?.execution?.id || result?.execution?.executionId;
+
+    // If execId starts with "wh-" it's a fallback fake ID — don't try to poll it
+    const canPoll = execId && !String(execId).startsWith('wh-');
+
+    if (canPoll) {
+      updateLastStep('success', `Execution ID: ${execId}`);
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
       await delay(300);
 
       addStep('Waiting for completion…', 'running');
@@ -409,15 +531,26 @@ export async function runWithLivePanel(workflowId, workflowName, cardEl, wf = nu
             </button>
           </div>`);
       } else {
+<<<<<<< HEAD
         // Poll timed out — workflow still running or slow
+=======
+        // Poll timed out — workflow still running or very slow
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
         addStep('Workflow running in background', 'success');
         footerEl.innerHTML = successFooter();
       }
     } else {
+<<<<<<< HEAD
       // Fire-and-forget or no exec ID — still a success
       updateLastStep('success', 'Workflow dispatched');
       await delay(200);
       addStep('Processing in background', 'success', 'Check History for the final result');
+=======
+      // Webhook fire-and-forget — no real execution ID returned
+      updateLastStep('success', 'Workflow dispatched');
+      await delay(200);
+      addStep('Workflow dispatched', 'success', 'n8n is processing in the background');
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
       footerEl.innerHTML = successFooter();
     }
 
@@ -464,22 +597,36 @@ function renderInlineResults(container, data) {
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 function execStatus(exec) {
+<<<<<<< HEAD
   if (exec.status === 'success' || exec.finished === true)           return 'success';
   if (exec.status === 'error'   || exec.status === 'failed')        return 'error';
   if (exec.status === 'running' || exec.finished === false)         return 'running';
+=======
+  if (exec.status === 'success' || exec.finished === true) return 'success';
+  if (exec.status === 'error' || exec.status === 'failed') return 'error';
+  if (exec.status === 'running' || exec.finished === false) return 'running';
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
   return 'unknown';
 }
 
 function statusIcon(s) {
   if (s === 'success') return 'check-circle';
+<<<<<<< HEAD
   if (s === 'error')   return 'times-circle';
+=======
+  if (s === 'error') return 'times-circle';
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
   if (s === 'running') return 'circle-notch';
   return 'question-circle';
 }
 
 function getDuration(exec) {
   const start = exec.startedAt || exec.started_at;
+<<<<<<< HEAD
   const end   = exec.stoppedAt || exec.finished_at;
+=======
+  const end = exec.stoppedAt || exec.finished_at;
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
   if (!start || !end) return null;
   return formatDuration(new Date(end) - new Date(start));
 }

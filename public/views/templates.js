@@ -2,7 +2,11 @@
 import { api, escapeHtml } from '../api.js';
 import { showModal, showToast, setPageHeader, setTopActions } from '../ui.js';
 
+<<<<<<< HEAD
 let _allTemplates    = [];
+=======
+let _allTemplates = [];
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
 let _savedCredentials = []; // loaded once, reused
 
 export async function templatesView() {
@@ -18,11 +22,19 @@ export async function templatesView() {
   grid.innerHTML = `<div class="loading-card"><div class="spinner-small"></div><span>Loading templates…</span></div>`;
 
   try {
+<<<<<<< HEAD
+=======
+    // Load templates + saved credentials in parallel
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
     const [templateData, credData] = await Promise.all([
       api.getTemplates(),
       api.getCredentials().catch(() => ({ credentials: [] })),
     ]);
+<<<<<<< HEAD
     _allTemplates    = templateData?.templates || [];
+=======
+    _allTemplates = templateData?.templates || [];
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
     _savedCredentials = credData?.credentials || [];
     renderTemplates(_allTemplates);
     setupTemplateSearch();
@@ -58,14 +70,25 @@ function renderTemplates(templates) {
   };
 
   grid.innerHTML = templates.map(t => {
+<<<<<<< HEAD
     const creds    = normalizeCreds(t.required_credentials);
     const catColor = getCatColor(t.category);
 
+=======
+    const creds = normalizeCreds(t.required_credentials);
+    const catColor = getCatColor(t.category);
+
+    // For each required credential type, check if the user has one saved
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
     const credStatus = creds.map(credType => {
       const match = _savedCredentials.filter(c => c.credential_type === credType);
       return { type: credType, saved: match };
     });
     const allCredsAvailable = credStatus.every(c => c.saved.length > 0);
+<<<<<<< HEAD
+=======
+    const hasAnyCred = credStatus.some(c => c.saved.length > 0);
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
 
     return `
       <div class="wf-card template-card">
@@ -129,20 +152,36 @@ function setupTemplateSearch() {
     const q = query.toLowerCase();
     if (!q) return renderTemplates(_allTemplates);
     renderTemplates(_allTemplates.filter(t =>
+<<<<<<< HEAD
       (t.name        || '').toLowerCase().includes(q) ||
       (t.category    || '').toLowerCase().includes(q) ||
       (t.description || '').toLowerCase().includes(q) ||
       (t.tags        || []).some(tag => tag.toLowerCase().includes(q))
+=======
+      (t.name || '').toLowerCase().includes(q) ||
+      (t.category || '').toLowerCase().includes(q) ||
+      (t.description || '').toLowerCase().includes(q) ||
+      (t.tags || []).some(tag => tag.toLowerCase().includes(q))
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
     ));
   };
 }
 
 // ─────────────────────────────────────────────
+<<<<<<< HEAD
 // Import modal
+=======
+// Import modal — shows credential DROPDOWNS
+// populated from saved credentials, not text inputs
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
 // ─────────────────────────────────────────────
 window._importTemplate = async (templateId, templateName, requiredCredTypes) => {
   const creds = Array.isArray(requiredCredTypes) ? requiredCredTypes : [];
 
+<<<<<<< HEAD
+=======
+  // Build credential selector for each required type
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
   const credSelectors = creds.map(credType => {
     const matching = _savedCredentials.filter(c => c.credential_type === credType);
 
@@ -194,7 +233,12 @@ window._importTemplate = async (templateId, templateName, requiredCredTypes) => 
           <div class="form-label" style="margin-bottom:0.75rem">Credentials</div>
           <div style="font-size:12px;color:var(--text-muted);margin-bottom:0.875rem;line-height:1.5;background:var(--bg-secondary);padding:8px 12px;border-radius:var(--radius-md)">
             <i class="fas fa-info-circle" style="color:var(--primary)"></i>
+<<<<<<< HEAD
             Select from your saved credentials below. They will be securely injected into the workflow automatically.
+=======
+            These are your saved credentials from the Credentials vault.
+            They will be automatically injected into the workflow in n8n — you don't need to touch anything else.
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
           </div>
           ${credSelectors}
         </div>
@@ -219,7 +263,11 @@ window._importTemplate = async (templateId, templateName, requiredCredTypes) => 
 };
 
 window._doImport = async (templateId, credTypes) => {
+<<<<<<< HEAD
   const name        = document.getElementById('importWfName')?.value?.trim();
+=======
+  const name = document.getElementById('importWfName')?.value?.trim();
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
   const credMappings = {};
 
   for (const cred of (credTypes || [])) {
@@ -232,15 +280,24 @@ window._doImport = async (templateId, credTypes) => {
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="spinner-small"></div> Importing…'; }
 
     const result = await api.importTemplate({
+<<<<<<< HEAD
       template_id:         templateId,
       workflow_name:       name,
+=======
+      template_id: templateId,
+      workflow_name: name,
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
       credential_mappings: credMappings,
     });
 
     document.getElementById('modal').classList.remove('active');
 
     const triggerMsg = result.manual_trigger_injected
+<<<<<<< HEAD
       ? ' A Manual Trigger node was added automatically.'
+=======
+      ? ' Manual Trigger node was added automatically.'
+>>>>>>> 46e3002dd9b705655805e515936d52e639fd47c9
       : '';
     showToast(`✅ Template imported!${triggerMsg}`, 'success');
 
